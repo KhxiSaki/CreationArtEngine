@@ -15,7 +15,10 @@ files {
 	includedirs
 	{
 		"Source",
-		"../Engine/Source"
+		"../Engine/Source",
+		"%{IncludeDir.GLFW}",
+		"%{IncludeDir.GLFW}/include",
+		"%{IncludeDir.VulkanSDK}"
 	}
 
 	links
