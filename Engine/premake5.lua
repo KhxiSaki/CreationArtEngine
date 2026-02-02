@@ -17,13 +17,23 @@ includedirs
 	{
 		"Source",
 		"%{IncludeDir.GLFW}",
-		"%{IncludeDir.GLFW}/include"
+		"%{IncludeDir.GLFW}/include",
+		"%{IncludeDir.VulkanSDK}"
+
 	}
 	
 links
 	{
 		"GLFW",
+		"vulkan-1"
 	}
+
+	-- Add Vulkan library directory
+	filter {"system:windows", "configurations:*"}
+		libdirs 
+		{
+			"%{VulkanSDK.LibraryDir}"
+		}
 	
 filter "system:windows"
 		systemversion "latest"
