@@ -78,7 +78,7 @@ def main():
         # myshader.comp -> myshader.spv
         if shader_path.suffix == ".frag":
             # Special case for fragment shaders to match engine expectations
-            output_name = "frag.spv"
+            output_name = shader_path.stem + ".spv"
         else:
             output_name = shader_path.stem + ".spv"
         
