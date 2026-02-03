@@ -45,6 +45,8 @@ private:
 	void CreateCommandBuffers();
 	void CreateSyncObjects();
 	void drawFrame();
+	void CleanupSwapChain();
+	void RecreateSwapChain();
 	void recordCommandBuffer(uint32_t imageIndex);
 	void transition_image_layout(uint32_t imageIndex, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 	                             vk::AccessFlags2 src_access_mask, vk::AccessFlags2 dst_access_mask,
@@ -94,6 +96,11 @@ private:
 		return vk::False;
 	}
 
+
+	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+		auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+		app->framebufferResized = true;
+	}
 	//ShaderManager
 	[[nodiscard]] vk::raii::ShaderModule CreateShaderModule(const std::vector<char>& code) const
 	{
@@ -150,6 +157,7 @@ private:
 	std::vector<vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector<vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
 	std::vector<vk::raii::Fence>     VulkanDrawFences;
+	bool framebufferResized = false;
 
 	std::vector<const char*> VulkanRequiredDeviceExtension = { vk::KHRSwapchainExtensionName };
 };

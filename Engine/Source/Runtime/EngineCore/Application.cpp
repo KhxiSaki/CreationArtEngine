@@ -41,6 +41,8 @@ void Application::InitializeWindow()
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     Window = glfwCreateWindow(WIDTH, HEIGHT, "RealityEngine", nullptr, nullptr);
+    glfwSetWindowUserPointer(Window, this);
+    glfwSetFramebufferSizeCallback(Window, framebufferResizeCallback);
 }
 
 void Application::InitializeVulkan()
@@ -402,10 +404,21 @@ void Application::drawFrame()
     {
         throw std::runtime_error("failed to wait for fence!");
     }
-    VulkanLogicalDevice.resetFences(*VulkanDrawFences[frameIndex]);
 
     auto [result, imageIndex] = VulkanSwapChain.acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphores[frameIndex], nullptr);
-    
+    if (result == vk::Result::eErrorOutOfDateKHR)
+    {
+        RecreateSwapChain();
+        return;
+    }
+	else if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
+    {
+        assert(result == vk::Result::eTimeout || result == vk::Result::eNotReady);
+        throw std::runtime_error("failed to acquire swap chain image!");
+    }
+
+    VulkanLogicalDevice.resetFences(*VulkanDrawFences[frameIndex]);
+
     VulkanCommandBuffers[frameIndex].reset();
 	recordCommandBuffer(imageIndex);
 
@@ -429,20 +442,52 @@ void Application::drawFrame()
     presentInfoKHR.pSwapchains = &*VulkanSwapChain;
     presentInfoKHR.pImageIndices = &imageIndex;
 
-
-    result = VulkanGraphicsQueue.presentKHR(presentInfoKHR);
-    switch (result)
+    try
     {
-    case vk::Result::eSuccess:
-        break;
-    case vk::Result::eSuboptimalKHR:
-        std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
-        break;
-    default:
-        break;        // an unexpected result is returned!
+        result = VulkanGraphicsQueue.presentKHR(presentInfoKHR);
+    	// Check for suboptimal or out of date results
+        if (result == vk::Result::eSuboptimalKHR || framebufferResized)
+        {
+            framebufferResized = false;
+            RecreateSwapChain();
+        }
+        else
+        {
+            assert(result == vk::Result::eSuccess);
+        }
     }
+    catch (const vk::OutOfDateKHRError&)
+    {
+        framebufferResized = false;
+        RecreateSwapChain();
+        return;  // Skip frame index increment since we're recreating
+    }
+
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
+}
+
+void Application::CleanupSwapChain() 
+{
+    VulkanSwapChainImageViews.clear();
+    VulkanSwapChain = nullptr;
+}
+
+
+void Application::RecreateSwapChain() 
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(Window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(Window, &width, &height);
+        glfwWaitEvents();
+    }
+
+    VulkanLogicalDevice.waitIdle();
+
+    CleanupSwapChain();
+    CreateSwapChain();
+    CreateImageViews();
 }
 
 void Application::recordCommandBuffer(uint32_t imageIndex)
@@ -560,6 +605,8 @@ void Application::MainLoop()
 
 void Application::Cleanup()
 {
+    CleanupSwapChain();
+
     glfwDestroyWindow(Window);
 
     glfwTerminate();
