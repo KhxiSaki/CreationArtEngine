@@ -15,6 +15,8 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
 Application::Application()
 {
 }
@@ -52,7 +54,7 @@ void Application::InitializeVulkan()
     CreateImageViews();
     CreateGraphicsPipeline();
     CreateCommandPool();
-    CreateCommandBuffer();
+    CreateCommandBuffers();
     CreateSyncObjects();
 }
 
@@ -363,57 +365,66 @@ void Application::CreateCommandPool()
     VulkanCommandPool = vk::raii::CommandPool(VulkanLogicalDevice, poolInfo);
 }
 
-void Application::CreateCommandBuffer()
+void Application::CreateCommandBuffers()
 {
+    VulkanCommandBuffers.clear();
+
     vk::CommandBufferAllocateInfo allocInfo;
     allocInfo.commandPool = VulkanCommandPool;
     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandBufferCount = 1;
+    allocInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
 
-	VulkanCommandBuffer = std::move(vk::raii::CommandBuffers(VulkanLogicalDevice, allocInfo).front());
+    VulkanCommandBuffers = vk::raii::CommandBuffers(VulkanLogicalDevice, allocInfo);
 }
 
 void Application::CreateSyncObjects()
 {
-    VulkanPresentCompleteSemaphore = vk::raii::Semaphore(VulkanLogicalDevice, vk::SemaphoreCreateInfo());
-    VulkanRenderFinishedSemaphore = vk::raii::Semaphore(VulkanLogicalDevice, vk::SemaphoreCreateInfo());
+    assert(VulkanPresentCompleteSemaphores.empty() && VulkanRenderFinishedSemaphores.empty() && VulkanDrawFences.empty());
 
-    vk::FenceCreateInfo FenceCreateInfo;
-    FenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+    for (size_t i = 0; i < VulkanSwapChainImages.size(); i++)
+    {
+        VulkanRenderFinishedSemaphores.emplace_back(VulkanLogicalDevice, vk::SemaphoreCreateInfo());
+    }
 
-    VulkanDrawFence = vk::raii::Fence(VulkanLogicalDevice, FenceCreateInfo);
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+    {
+        VulkanPresentCompleteSemaphores.emplace_back(VulkanLogicalDevice, vk::SemaphoreCreateInfo());
+        vk::FenceCreateInfo FenceCreateInfo;
+        FenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+        VulkanDrawFences.emplace_back(VulkanLogicalDevice, FenceCreateInfo);
+    }
 };
 
 void Application::drawFrame()
 {
-    VulkanGraphicsQueue.waitIdle();        // NOTE: for simplicity, wait for the queue to be idle before starting the frame
-    // In the next chapter you see how to use multiple frames in flight and fences to sync
+    auto fenceResult = VulkanLogicalDevice.waitForFences(*VulkanDrawFences[frameIndex], vk::True, UINT64_MAX);
+    if (fenceResult != vk::Result::eSuccess)
+    {
+        throw std::runtime_error("failed to wait for fence!");
+    }
+    VulkanLogicalDevice.resetFences(*VulkanDrawFences[frameIndex]);
 
-    auto [result, imageIndex] = VulkanSwapChain.acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphore, nullptr);
-    recordCommandBuffer(imageIndex);
+    auto [result, imageIndex] = VulkanSwapChain.acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphores[frameIndex], nullptr);
+    
+    VulkanCommandBuffers[frameIndex].reset();
+	recordCommandBuffer(imageIndex);
 
-    VulkanLogicalDevice.resetFences(*VulkanDrawFence);
     vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
 	vk::SubmitInfo   submitInfo{};
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &*VulkanPresentCompleteSemaphore;
+    submitInfo.pWaitSemaphores = &*VulkanPresentCompleteSemaphores[frameIndex];
     submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &*VulkanCommandBuffer;
+    submitInfo.pCommandBuffers = &*VulkanCommandBuffers[frameIndex];
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &*VulkanRenderFinishedSemaphore;
+    submitInfo.pSignalSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
 
-    VulkanGraphicsQueue.submit(submitInfo, *VulkanDrawFence);
-    result = VulkanLogicalDevice.waitForFences(*VulkanDrawFence, vk::True, UINT64_MAX);
-    if (result != vk::Result::eSuccess)
-    {
-        throw std::runtime_error("failed to wait for fence!");
-    }
+    VulkanGraphicsQueue.submit(submitInfo, *VulkanDrawFences[frameIndex]);
 
     vk::PresentInfoKHR presentInfoKHR;
     presentInfoKHR.waitSemaphoreCount = 1;
-    presentInfoKHR.pWaitSemaphores = &*VulkanRenderFinishedSemaphore;
+    presentInfoKHR.pWaitSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
     presentInfoKHR.swapchainCount = 1;
     presentInfoKHR.pSwapchains = &*VulkanSwapChain;
     presentInfoKHR.pImageIndices = &imageIndex;
@@ -430,11 +441,15 @@ void Application::drawFrame()
     default:
         break;        // an unexpected result is returned!
     }
+    frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
 }
 
 void Application::recordCommandBuffer(uint32_t imageIndex)
 {
-    VulkanCommandBuffer.begin({});
+    auto& commandBuffer = VulkanCommandBuffers[frameIndex];
+
+    commandBuffer.begin({});
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transition_image_layout(
         imageIndex,
@@ -462,14 +477,14 @@ void Application::recordCommandBuffer(uint32_t imageIndex)
         .setPColorAttachments(&attachmentInfo)
     );
 
-    VulkanCommandBuffer.beginRendering(renderingInfo);
+    commandBuffer.beginRendering(renderingInfo);
     
-	VulkanCommandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *VulkanGraphicsPipeline);
-    VulkanCommandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(VulkanSwapChainExtent.width), static_cast<float>(VulkanSwapChainExtent.height), 0.0f, 1.0f));
-    VulkanCommandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), VulkanSwapChainExtent));
-    VulkanCommandBuffer.draw(3, 1, 0, 0);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *VulkanGraphicsPipeline);
+    commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(VulkanSwapChainExtent.width), static_cast<float>(VulkanSwapChainExtent.height), 0.0f, 1.0f));
+    commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), VulkanSwapChainExtent));
+    commandBuffer.draw(3, 1, 0, 0);
     
-	VulkanCommandBuffer.endRendering();
+    commandBuffer.endRendering();
 
     // After rendering, transition the swapchain image to PRESENT_SRC
     transition_image_layout(
@@ -481,7 +496,7 @@ void Application::recordCommandBuffer(uint32_t imageIndex)
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,        // srcStage
         vk::PipelineStageFlagBits2::eBottomOfPipe                  // dstStage
     );
-    VulkanCommandBuffer.end();
+    commandBuffer.end();
 }
 
 void Application::transition_image_layout(
@@ -518,7 +533,7 @@ void Application::transition_image_layout(
         .setImageMemoryBarrierCount(1)
         .setPImageMemoryBarriers(&barrier)
     );
-    VulkanCommandBuffer.pipelineBarrier2(dependency_info);
+    VulkanCommandBuffers[frameIndex].pipelineBarrier2(dependency_info);
 }
 vk::Extent2D Application::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities)
 {

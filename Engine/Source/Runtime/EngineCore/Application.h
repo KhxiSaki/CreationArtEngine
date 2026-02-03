@@ -42,7 +42,7 @@ private:
 	void CreateImageViews();
 	void CreateGraphicsPipeline();
 	void CreateCommandPool();
-	void CreateCommandBuffer();
+	void CreateCommandBuffers();
 	void CreateSyncObjects();
 	void drawFrame();
 	void recordCommandBuffer(uint32_t imageIndex);
@@ -141,13 +141,15 @@ private:
 	vk::Extent2D                     VulkanSwapChainExtent;
 	std::vector<vk::raii::ImageView> VulkanSwapChainImageViews;
 	uint32_t                         queueIndex = ~0;
+	uint32_t frameIndex = 0;
+
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
 	vk::raii::CommandPool VulkanCommandPool = nullptr;
-	vk::raii::CommandBuffer  VulkanCommandBuffer = nullptr;
-	vk::raii::Semaphore VulkanPresentCompleteSemaphore = nullptr;
-	vk::raii::Semaphore VulkanRenderFinishedSemaphore = nullptr;
-	vk::raii::Fence     VulkanDrawFence = nullptr;
+	std::vector<vk::raii::CommandBuffer>  VulkanCommandBuffers;
+	std::vector<vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
+	std::vector<vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
+	std::vector<vk::raii::Fence>     VulkanDrawFences;
 
 	std::vector<const char*> VulkanRequiredDeviceExtension = { vk::KHRSwapchainExtensionName };
 };
