@@ -16,6 +16,7 @@ import vulkan_hpp;
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include "Window.h"
 
 class Application
 {
@@ -97,10 +98,7 @@ private:
 	}
 
 
-	static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-		auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
-		app->framebufferResized = true;
-	}
+
 	//ShaderManager
 	[[nodiscard]] vk::raii::ShaderModule CreateShaderModule(const std::vector<char>& code) const
 	{
@@ -132,7 +130,7 @@ protected:
 	bool bIsApplicationRunning = true;
 
 private:
-	GLFWwindow* Window;
+	Window* m_Window;
 
 	//Vulkan
 	vk::raii::Context  VulkanContext;
@@ -157,7 +155,6 @@ private:
 	std::vector<vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector<vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
 	std::vector<vk::raii::Fence>     VulkanDrawFences;
-	bool framebufferResized = false;
 
 	std::vector<const char*> VulkanRequiredDeviceExtension = { vk::KHRSwapchainExtensionName };
 };

@@ -1,8 +1,6 @@
 #include "Runtime/EngineCore/Application.h"
 
-//TODO: Will probably move this to a window class in the future
-constexpr uint32_t WIDTH = 800;
-constexpr uint32_t HEIGHT = 600;
+
 
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
@@ -35,14 +33,7 @@ void Application::Run()
 
 void Application::InitializeWindow()
 {
-    glfwInit();
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-    Window = glfwCreateWindow(WIDTH, HEIGHT, "RealityEngine", nullptr, nullptr);
-    glfwSetWindowUserPointer(Window, this);
-    glfwSetFramebufferSizeCallback(Window, framebufferResizeCallback);
+    m_Window = new Window("CreationArtEngine", 800, 600);
 }
 
 void Application::InitializeVulkan()
@@ -130,7 +121,7 @@ void Application::SetupDebugMessenger()
 void Application::CreateSurface()
 {
     VkSurfaceKHR _surface;
-    if (glfwCreateWindowSurface(*VulkanInstance, Window, nullptr, &_surface) != 0) {
+    if (glfwCreateWindowSurface(*VulkanInstance, m_Window->getGLFWwindow(), nullptr, &_surface) != 0) {
         throw std::runtime_error("failed to create window surface!");
     }
     VulkanSurface = vk::raii::SurfaceKHR(VulkanInstance, _surface);
@@ -445,10 +436,10 @@ void Application::drawFrame()
     try
     {
         result = VulkanGraphicsQueue.presentKHR(presentInfoKHR);
-    	// Check for suboptimal or out of date results
-        if (result == vk::Result::eSuboptimalKHR || framebufferResized)
+// Check for suboptimal or out of date results
+if (result == vk::Result::eSuboptimalKHR || m_Window->IsResized())
         {
-            framebufferResized = false;
+            m_Window->SetResizedFalse();
             RecreateSwapChain();
         }
         else
@@ -456,9 +447,9 @@ void Application::drawFrame()
             assert(result == vk::Result::eSuccess);
         }
     }
-    catch (const vk::OutOfDateKHRError&)
+catch (const vk::OutOfDateKHRError&)
     {
-        framebufferResized = false;
+        m_Window->SetResizedFalse();
         RecreateSwapChain();
         return;  // Skip frame index increment since we're recreating
     }
@@ -477,9 +468,9 @@ void Application::CleanupSwapChain()
 void Application::RecreateSwapChain() 
 {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(Window, &width, &height);
+glfwGetFramebufferSize(m_Window->getGLFWwindow(), &width, &height);
     while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(Window, &width, &height);
+        glfwGetFramebufferSize(m_Window->getGLFWwindow(), &width, &height);
         glfwWaitEvents();
     }
 
@@ -587,7 +578,7 @@ vk::Extent2D Application::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& cap
         return capabilities.currentExtent;
     }
     int WindowWidth, WindowHeight;
-    glfwGetFramebufferSize(Window, &WindowWidth, &WindowHeight);
+    glfwGetFramebufferSize(m_Window->getGLFWwindow(), &WindowWidth, &WindowHeight);
 
     return {
         std::clamp<uint32_t>(WindowWidth, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
@@ -596,8 +587,8 @@ vk::Extent2D Application::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& cap
 
 void Application::MainLoop()
 {
-    while (!glfwWindowShouldClose(Window)) {
-        glfwPollEvents(); 
+while (!m_Window->closed()) {
+        m_Window->Update(); 
     	drawFrame();
     }
     VulkanLogicalDevice.waitIdle();        // wait for device to finish operations before destroying resources
@@ -607,9 +598,7 @@ void Application::Cleanup()
 {
     CleanupSwapChain();
 
-    glfwDestroyWindow(Window);
-
-    glfwTerminate();
+    delete m_Window;
 }
 
 std::vector<const char*> Application::getRequiredExtensions() {

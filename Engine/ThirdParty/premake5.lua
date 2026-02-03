@@ -1,3 +1,4 @@
+---------------------------------------- GLFW-------------------------------------------------------
 project "GLFW"
 	kind "StaticLib"
 	language "C"
@@ -76,6 +77,39 @@ project "GLFW"
 		{
 			"_GLFW_X11"
 		}
+
+	filter "configurations:Debug"
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release"
+		runtime "Release"
+		optimize "on"
+
+---------------------------------------- GLM-------------------------------------------------------
+project "GLM"
+	kind "StaticLib"
+	language "C++"
+
+	targetdir ("GLM/Binaries/" .. outputdir .. "/%{prj.name}")
+	objdir ("GLM/Intermediate/" .. outputdir .. "/%{prj.name}")
+
+	files
+	{
+		"GLM/glm/**.hpp",
+		"GLM/glm/**.inl"
+	}
+
+	filter "system:windows"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
+
+	filter "system:linux"
+		pic "On"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
 
 	filter "configurations:Debug"
 		runtime "Debug"

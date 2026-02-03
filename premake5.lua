@@ -19,6 +19,7 @@ outputdir = "%{cfg.buildcfg}/%{cfg.system}/%{cfg.architecture}"
 IncludeDir = {}
 IncludeDir["GLFW"] = "%{wks.location}/Engine/ThirdParty/glfw"
 IncludeDir["VulkanSDK"] = "C:/VulkanSDK/1.4.335.0/Include"
+IncludeDir["GLM"] = "%{wks.location}/Engine/ThirdParty/GLM"
 
 VulkanSDK = {}
 VulkanSDK.LibraryDir = "C:/VulkanSDK/1.4.335.0/Lib"

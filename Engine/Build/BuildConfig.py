@@ -37,5 +37,12 @@ DEPENDENCIES: list[Dependency] = [
         url="https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.zip",
         install_path=f"{THIRD_PARTY_DIR}/glfw",
         extracted_folder="glfw"
+    ),
+     Dependency(
+        name="GLM",
+        version="1.0.3",
+        url="https://github.com/g-truc/glm/archive/refs/tags/1.0.3.zip",
+        install_path=f"{THIRD_PARTY_DIR}/GLM",
+        extracted_folder="GLM"
     )
 ]

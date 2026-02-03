@@ -18,7 +18,8 @@ includedirs
 		"Source",
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.GLFW}/include",
-		"%{IncludeDir.VulkanSDK}"
+		"%{IncludeDir.VulkanSDK}",
+		"%{IncludeDir.GLM}"
 
 	}
 	
