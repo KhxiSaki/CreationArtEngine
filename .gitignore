@@ -36,6 +36,7 @@ Makefile
 # Third-Party Dependencies (downloaded by Setup.py)
 # -----------------------------------------------------------------------------
 Engine/ThirdParty/glfw/
+Engine/ThirdParty/GLM/
 
 # -----------------------------------------------------------------------------
 # Vulkan SDK Installer (if downloaded locally)
