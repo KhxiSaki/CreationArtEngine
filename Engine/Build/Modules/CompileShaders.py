@@ -62,6 +62,7 @@ def main():
     shader_files = []
     for ext in [".vert", ".frag", ".comp", ".geom", ".tesc", ".tese"]:
         shader_files.extend(shader_dir.glob(f"*{ext}"))
+        shader_files.extend(shader_dir.glob(f"**/*{ext}"))  # Recursively find subdirectories
     
     if not shader_files:
         print("\n[!] No shader files found in Engine/Shaders/")
