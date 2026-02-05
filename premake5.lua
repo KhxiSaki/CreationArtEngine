@@ -33,10 +33,6 @@ group "Engine"
 include "Engine"
 group ""
 
-group "Game"
-include "Game"
-group ""
-
 group "ThirdParty"
 include "Engine/ThirdParty"
 group ""
