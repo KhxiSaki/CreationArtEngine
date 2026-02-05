@@ -33,6 +33,10 @@ group "Engine"
 include "Engine"
 group ""
 
+group "Editor"
+include "CEEditor"
+group ""
+
 group "ThirdParty"
 include "Engine/ThirdParty"
 group ""
