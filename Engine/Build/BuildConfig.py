@@ -12,7 +12,7 @@ THIRD_PARTY_DIR = "./Engine/ThirdParty"
 VULKAN_SDK_DIR = "./Engine/ThirdParty/SDK/VulkanSDK"
 
 # ---- Premake Configuration ----
-PREMAKE_VERSION = "5.0.0-beta7"
+PREMAKE_VERSION = "5.0.0-beta8"
 PREMAKE_DOWNLOAD_URL = f"https://github.com/premake/premake-core/releases/download/v{PREMAKE_VERSION}/premake-{PREMAKE_VERSION}-windows.zip"
 PREMAKE_LICENSE_URL = "https://raw.githubusercontent.com/premake/premake-core/master/LICENSE.txt"
 
