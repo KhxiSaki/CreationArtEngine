@@ -37,6 +37,7 @@ Makefile
 # -----------------------------------------------------------------------------
 Engine/ThirdParty/glfw/
 Engine/ThirdParty/GLM/
+Engine/ThirdParty/ImGUI/
 
 # -----------------------------------------------------------------------------
 # Vulkan SDK Installer (if downloaded locally)
