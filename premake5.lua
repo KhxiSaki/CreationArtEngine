@@ -20,6 +20,7 @@ IncludeDir = {}
 IncludeDir["GLFW"] = "%{wks.location}/Engine/ThirdParty/glfw"
 IncludeDir["VulkanSDK"] = "C:/VulkanSDK/1.4.335.0/Include"
 IncludeDir["GLM"] = "%{wks.location}/Engine/ThirdParty/GLM"
+IncludeDir["ImGui"] = "%{wks.location}/Engine/ThirdParty/ImGui"
 
 VulkanSDK = {}
 VulkanSDK.LibraryDir = "C:/VulkanSDK/1.4.335.0/Lib"
@@ -35,6 +36,10 @@ group ""
 
 group "Editor"
 include "CEEditor"
+group ""
+
+group "Game"
+include "Game"
 group ""
 
 group "ThirdParty"

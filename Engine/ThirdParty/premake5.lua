@@ -1,3 +1,60 @@
+---------------------------------------- ImGUI-------------------------------------------------------
+project "ImGui"
+	kind "StaticLib"
+	language "C++"
+
+	targetdir ("ImGui/Binaries/" .. outputdir .. "/%{prj.name}")
+	objdir ("ImGui/Intermediate/" .. outputdir .. "/%{prj.name}")
+
+	files
+	{
+		"ImGui/imconfig.h",
+		"ImGui/imgui.h",
+		"ImGui/imgui.cpp",
+		"ImGui/imgui_draw.cpp",
+		"ImGui/imgui_internal.h",
+		"ImGui/imgui_widgets.cpp",
+		"ImGui/imstb_rectpack.h",
+		"ImGui/imstb_textedit.h",
+		"ImGui/imstb_truetype.h",
+		"ImGui/imgui_demo.cpp",
+		"ImGui/imgui_tables.cpp",
+		"ImGui/backends/imgui_impl_glfw.cpp",
+		"ImGui/backends/imgui_impl_vulkan.cpp"
+	}
+
+	includedirs
+	{
+		"ImGui",
+		"ImGui/backends",
+		"%{IncludeDir.GLFW}/include",
+		"%{IncludeDir.VulkanSDK}"
+	}
+
+	defines
+	{
+		"IMGUI_IMPL_VULKAN_NO_PROTOTYPES"
+	}
+
+	filter "system:windows"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
+
+	filter "system:linux"
+		pic "On"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
+
+	filter "configurations:Debug"
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release"
+		runtime "Release"
+		optimize "on"
+
 ---------------------------------------- GLFW-------------------------------------------------------
 project "GLFW"
 	kind "StaticLib"

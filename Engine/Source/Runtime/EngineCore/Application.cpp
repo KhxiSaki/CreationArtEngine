@@ -1,4 +1,5 @@
 #include "Runtime/EngineCore/Application.h"
+#include "Runtime/EngineCore/RHI/RHIManager.h"
 
 Application::Application()
 {
@@ -24,7 +25,15 @@ void Application::InitializeWindow()
 void Application::InitializeEngine()
 {
     m_Engine = std::make_unique<GameEngine>();
-    m_Engine->Initialize(m_Window);
+    
+    // Get RHI preference from manager
+    auto& rhiManager = RHIManager::GetInstance();
+    RHIType preferredRHI = rhiManager.GetPreferredRHI();
+    
+    // Print RHI info for debugging
+    rhiManager.PrintRHIInfo();
+    
+    m_Engine->Initialize(m_Window, preferredRHI);
 }
 
 void Application::MainLoop()

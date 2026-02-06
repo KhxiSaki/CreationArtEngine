@@ -31,6 +31,13 @@ class Dependency:
 
 # ---- Third Party Dependencies ----
 DEPENDENCIES: list[Dependency] = [
+     Dependency(
+        name="ImGui",
+        version="docking",
+        url="https://github.com/ocornut/imgui/archive/refs/heads/docking.zip",
+        install_path=f"{THIRD_PARTY_DIR}/ImGui",
+        extracted_folder="imgui-1.92.5"
+    ),
   Dependency(
         name="glfw",
         version="3.4.0",

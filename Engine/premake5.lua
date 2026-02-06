@@ -10,7 +10,11 @@ project "Engine"
 files
 	{
 		"Source/**.h",
-		"Source/**.cpp"
+		"Source/**.cpp",
+		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.h",
+		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.cpp",
+		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.h",
+		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.cpp"
 	}
 	
 includedirs
@@ -18,13 +22,15 @@ includedirs
 		"Source",
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.GLFW}/include",
+		"%{IncludeDir.ImGui}",
+		"%{IncludeDir.ImGui}/backends",
 		"%{IncludeDir.VulkanSDK}",
-		"%{IncludeDir.GLM}"
-
+		"%{IncludeDir.GLM}",
 	}
 	
 links
 	{
+		"ImGui",
 		"GLFW",
 		"vulkan-1"
 	}
