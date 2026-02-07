@@ -46,8 +46,6 @@ public:
     void OnWindowResize() override;
 
     bool IsInitialized() const override { return m_Initialized; }
-    RHIType GetType() const override { return RHIType::Vulkan; }
-    const char* GetName() const override { return "Vulkan"; }
 
     // Vulkan-specific static methods
     static bool IsAvailable();
