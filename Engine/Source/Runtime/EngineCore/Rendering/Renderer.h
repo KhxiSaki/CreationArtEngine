@@ -50,7 +50,6 @@ void CreateCommandBuffers();
     void CreateFramebuffers();
     void CreateSyncObjects();
     void drawFrame();
-void CleanupSwapChain();
     void CleanupSwapChainResources();
     void RecreateSwapChain();
     void recordCommandBuffer(uint32_t imageIndex);

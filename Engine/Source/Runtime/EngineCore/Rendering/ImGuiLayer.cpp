@@ -96,8 +96,7 @@ void ImGuiLayer::OnAttach()
         check_vk_result(err);
     }
 
-    // Setup Vulkan Window
-    SetupVulkanWindow();
+
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -118,12 +117,12 @@ void ImGuiLayer::OnAttach()
     init_info.Device = vkDevice;
     init_info.QueueFamily = queueFamily;
     init_info.Queue = vkGraphicsQueue;
-    init_info.PipelineCache = m_PipelineCache;
+    init_info.PipelineCache = VK_NULL_HANDLE;
     init_info.DescriptorPool = m_DescriptorPool;
-    init_info.MinImageCount = m_MinImageCount;
-    init_info.ImageCount = m_MainWindowData.ImageCount;
+    init_info.MinImageCount = 2;
+    init_info.ImageCount = 2;
     init_info.Allocator = nullptr;
-    init_info.PipelineInfoMain.RenderPass = m_MainWindowData.RenderPass;
+    init_info.PipelineInfoMain.RenderPass = m_RenderPass->get();
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.CheckVkResultFn = [](VkResult err) { 
@@ -143,6 +142,7 @@ void ImGuiLayer::OnAttach()
 
 void ImGuiLayer::OnDetach()
 {
+    // Wait for device to be idle before cleanup
     if (m_Device) {
         VkResult err = vkDeviceWaitIdle(m_Device->get());
         check_vk_result(err);
@@ -155,7 +155,6 @@ void ImGuiLayer::OnDetach()
         ImGui::DestroyContext();
     }
 
-    CleanupVulkanWindow();
     CleanupVulkan();
 }
 
@@ -210,51 +209,12 @@ void ImGuiLayer::OnRender(VkCommandBuffer commandBuffer)
     const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
     if (!is_minimized)
     {
-        m_MainWindowData.ClearValue.color.float32[0] = m_ClearColor.x * m_ClearColor.w;
-        m_MainWindowData.ClearValue.color.float32[1] = m_ClearColor.y * m_ClearColor.w;
-        m_MainWindowData.ClearValue.color.float32[2] = m_ClearColor.z * m_ClearColor.w;
-        m_MainWindowData.ClearValue.color.float32[3] = m_ClearColor.w;
-        FrameRender(draw_data);
-        FramePresent();
+        // Record ImGui draw data directly to the provided command buffer
+        ImGui_ImplVulkan_RenderDrawData(draw_data, commandBuffer);
     }
 }
 
-void ImGuiLayer::SetupVulkanWindow()
-{
-    // Get Vulkan objects from RHI classes
-    VkPhysicalDevice vkPhysicalDevice = m_PhysicalDevice->get();
-    VkSurfaceKHR vkSurface = m_Surface->get();
-    uint32_t queueFamily = m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value();
 
-    // Check for WSI support
-    VkBool32 res;
-    vkGetPhysicalDeviceSurfaceSupportKHR(vkPhysicalDevice, queueFamily, vkSurface, &res);
-    if (res != VK_TRUE)
-    {
-        std::cerr << "Error no WSI support on physical device 0" << std::endl;
-        std::exit(-1);
-    }
-
-    // Select Surface Format
-    const VkFormat requestSurfaceImageFormat[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
-    const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-    m_MainWindowData.Surface = vkSurface;
-    m_MainWindowData.SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(vkPhysicalDevice, m_MainWindowData.Surface, requestSurfaceImageFormat, sizeof(requestSurfaceImageFormat)/sizeof(requestSurfaceImageFormat[0]), requestSurfaceColorSpace);
-
-    // Select Present Mode
-    VkPresentModeKHR present_modes[] = { VK_PRESENT_MODE_FIFO_KHR };
-    m_MainWindowData.PresentMode = ImGui_ImplVulkanH_SelectPresentMode(vkPhysicalDevice, m_MainWindowData.Surface, present_modes, sizeof(present_modes)/sizeof(present_modes[0]));
-
-    // Get window size
-    int width, height;
-    glfwGetFramebufferSize(m_Window, &width, &height);
-    m_MainWindowData.Width = width;
-    m_MainWindowData.Height = height;
-
-    // Create SwapChain, RenderPass, Framebuffer, etc.
-    IM_ASSERT(m_MinImageCount >= 2);
-    ImGui_ImplVulkanH_CreateOrResizeWindow(m_Instance->getInstance(), vkPhysicalDevice, m_Device->get(), &m_MainWindowData, queueFamily, nullptr, width, height, m_MinImageCount, 0);
-}
 
 void ImGuiLayer::CleanupVulkan()
 {
@@ -264,96 +224,10 @@ void ImGuiLayer::CleanupVulkan()
     }
 }
 
-void ImGuiLayer::CleanupVulkanWindow()
+
+
+void ImGuiLayer::OnWindowResize(int width, int height)
 {
-    if (m_Instance && m_Device) {
-        ImGui_ImplVulkanH_DestroyWindow(m_Instance->getInstance(), m_Device->get(), &m_MainWindowData, nullptr);
-    }
-}
-
-void ImGuiLayer::FrameRender(ImDrawData* draw_data)
-{
-    VkSemaphore image_acquired_semaphore  = m_MainWindowData.FrameSemaphores[m_MainWindowData.SemaphoreIndex].ImageAcquiredSemaphore;
-    VkSemaphore render_complete_semaphore = m_MainWindowData.FrameSemaphores[m_MainWindowData.SemaphoreIndex].RenderCompleteSemaphore;
-    VkResult err = vkAcquireNextImageKHR(m_Device->get(), m_MainWindowData.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &m_MainWindowData.FrameIndex);
-    if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR)
-        m_SwapChainRebuild = true;
-    if (err == VK_ERROR_OUT_OF_DATE_KHR)
-        return;
-    if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
-
-    ImGui_ImplVulkanH_Frame* fd = &m_MainWindowData.Frames[m_MainWindowData.FrameIndex];
-    {
-        err = vkWaitForFences(m_Device->get(), 1, &fd->Fence, VK_TRUE, UINT64_MAX);
-        check_vk_result(err);
-
-        err = vkResetFences(m_Device->get(), 1, &fd->Fence);
-        check_vk_result(err);
-    }
-    {
-        err = vkResetCommandPool(m_Device->get(), fd->CommandPool, 0);
-        check_vk_result(err);
-        VkCommandBufferBeginInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        err = vkBeginCommandBuffer(fd->CommandBuffer, &info);
-        check_vk_result(err);
-    }
-    {
-        VkRenderPassBeginInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        info.renderPass = m_MainWindowData.RenderPass;
-        info.framebuffer = fd->Framebuffer;
-        info.renderArea.extent.width = m_MainWindowData.Width;
-        info.renderArea.extent.height = m_MainWindowData.Height;
-        info.clearValueCount = 1;
-        info.pClearValues = &m_MainWindowData.ClearValue;
-        vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
-    }
-
-    // Record dear imgui primitives into command buffer
-    ImGui_ImplVulkan_RenderDrawData(draw_data, fd->CommandBuffer);
-
-    // Submit command buffer
-    vkCmdEndRenderPass(fd->CommandBuffer);
-    {
-        VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        VkSubmitInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        info.waitSemaphoreCount = 1;
-        info.pWaitSemaphores = &image_acquired_semaphore;
-        info.pWaitDstStageMask = &wait_stage;
-        info.commandBufferCount = 1;
-        info.pCommandBuffers = &fd->CommandBuffer;
-        info.signalSemaphoreCount = 1;
-        info.pSignalSemaphores = &render_complete_semaphore;
-
-        err = vkEndCommandBuffer(fd->CommandBuffer);
-        check_vk_result(err);
-        err = vkQueueSubmit(m_Device->getGraphicsQueue(), 1, &info, fd->Fence);
-        check_vk_result(err);
-    }
-}
-
-void ImGuiLayer::FramePresent()
-{
-    if (m_SwapChainRebuild)
-        return;
-    VkSemaphore render_complete_semaphore = m_MainWindowData.FrameSemaphores[m_MainWindowData.SemaphoreIndex].RenderCompleteSemaphore;
-    VkPresentInfoKHR info = {};
-    info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    info.waitSemaphoreCount = 1;
-    info.pWaitSemaphores = &render_complete_semaphore;
-    info.swapchainCount = 1;
-    info.pSwapchains = &m_MainWindowData.Swapchain;
-    info.pImageIndices = &m_MainWindowData.FrameIndex;
-    VkResult err = vkQueuePresentKHR(m_Device->getPresentQueue(), &info);
-    if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR)
-        m_SwapChainRebuild = true;
-    if (err == VK_ERROR_OUT_OF_DATE_KHR)
-        return;
-    if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
-    m_MainWindowData.SemaphoreIndex = (m_MainWindowData.SemaphoreIndex + 1) % m_MainWindowData.SemaphoreCount;
+    // ImGui doesn't need to do anything special on resize since it's using the main renderer's swapchain
+    // The display size will be updated automatically in OnUpdate via ImGui_ImplGlfw_NewFrame()
 }

@@ -27,14 +27,11 @@ public:
     void OnRender(VkCommandBuffer commandBuffer) override;
 
     void SetRendererContext(Renderer* renderer);
+    void OnWindowResize(int width, int height);
 
 private:
     void SetupVulkan();
-    void SetupVulkanWindow();
     void CleanupVulkan();
-    void CleanupVulkanWindow();
-    void FrameRender(ImDrawData* draw_data);
-    void FramePresent();
     void check_vk_result(VkResult err);
 
     // RHI components from renderer
@@ -47,13 +44,7 @@ private:
     RenderPass* m_RenderPass = nullptr;
     
     // Vulkan objects (created by ImGui)
-    VkPipelineCache m_PipelineCache = VK_NULL_HANDLE;
     VkDescriptorPool m_DescriptorPool = VK_NULL_HANDLE;
-
-    // Window data
-    ImGui_ImplVulkanH_Window m_MainWindowData;
-    uint32_t m_MinImageCount = 2;
-    bool m_SwapChainRebuild = false;
 
     // ImGui state
     bool m_ShowDemoWindow = true;

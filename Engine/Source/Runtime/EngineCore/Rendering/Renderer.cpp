@@ -49,11 +49,12 @@ void Renderer::Shutdown()
 {
     if (m_Initialized)
     {
+        // Wait for device to be idle before cleanup
         if (m_Device) {
             vkDeviceWaitIdle(m_Device->get());
         }
         
-// Shutdown layers first
+        // Shutdown layers first - this will clean up ImGui's Vulkan resources
         if (m_LayerStack) {
             for (auto layer : *m_LayerStack) {
                 layer->OnDetach();
@@ -61,7 +62,38 @@ void Renderer::Shutdown()
             m_LayerStack.reset();
         }
         
-        CleanupSwapChain();
+        // Clean up swapchain and other resources
+        CleanupSwapChainResources();
+        
+        // Clean up Vulkan objects in correct order
+        if (m_CommandPool) {
+            m_CommandPool.reset();
+        }
+        
+        if (m_SwapChain) {
+            m_SwapChain.reset();
+        }
+        
+        if (m_RenderPass) {
+            m_RenderPass.reset();
+        }
+        
+        if (m_Device) {
+            m_Device.reset();
+        }
+        
+        if (m_Surface) {
+            m_Surface.reset();
+        }
+        
+        if (m_PhysicalDevice) {
+            m_PhysicalDevice.reset();
+        }
+        
+        if (m_Instance) {
+            m_Instance.reset();
+        }
+        
         m_Initialized = false;
     }
 }
@@ -307,46 +339,6 @@ vkResetFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex]);
     m_FrameIndex = (m_FrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void Renderer::CleanupSwapChain()
-{
-    if (m_Device) {
-        vkDeviceWaitIdle(m_Device->get());
-    }
-    
-    // Clean up framebuffers
-    for (auto framebuffer : m_Framebuffers) {
-        vkDestroyFramebuffer(m_Device->get(), framebuffer, nullptr);
-    }
-    m_Framebuffers.clear();
-    
-    // Clean up synchronization objects
-    for (auto semaphore : m_RenderFinishedSemaphores) {
-        vkDestroySemaphore(m_Device->get(), semaphore, nullptr);
-    }
-    m_RenderFinishedSemaphores.clear();
-    
-    for (auto semaphore : m_PresentCompleteSemaphores) {
-        vkDestroySemaphore(m_Device->get(), semaphore, nullptr);
-    }
-    m_PresentCompleteSemaphores.clear();
-    
-    for (auto fence : m_DrawFences) {
-        vkDestroyFence(m_Device->get(), fence, nullptr);
-    }
-    m_DrawFences.clear();
-    
-    // Clean up command buffers
-    if (!m_CommandBuffers.empty() && m_CommandPool) {
-        vkFreeCommandBuffers(m_Device->get(), m_CommandPool->get(), 
-                           static_cast<uint32_t>(m_CommandBuffers.size()), 
-                           m_CommandBuffers.data());
-    }
-    m_CommandBuffers.clear();
-    
-// Clean up swap chain
-    m_SwapChain.reset();
-}
-
 void Renderer::CleanupSwapChainResources()
 {
     if (m_Device) {
@@ -398,11 +390,18 @@ void Renderer::RecreateSwapChain()
 
 vkDeviceWaitIdle(m_Device->get());
 
-    // Store old swapchain handle before cleanup
+// Store old swapchain handle before cleanup
     VkSwapchainKHR oldSwapchain = m_SwapChain ? m_SwapChain->get() : VK_NULL_HANDLE;
 
     // Clean up only the resources that depend on the swapchain, but keep the swapchain itself
     CleanupSwapChainResources();
+    
+    // Release the old swapchain without destroying it (it will be destroyed by vkCreateSwapchainKHR)
+    if (m_SwapChain)
+    {
+        m_SwapChain->release();
+        m_SwapChain.reset();
+    }
     
 // Recreate Swap Chain using builder
     const auto& queueIndices = m_PhysicalDevice->getQueueFamilyIndices();
@@ -418,11 +417,8 @@ vkDeviceWaitIdle(m_Device->get());
     
 m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
     
-    // Now destroy the old swapchain
-    if (oldSwapchain != VK_NULL_HANDLE)
-    {
-        vkDestroySwapchainKHR(m_Device->get(), oldSwapchain, nullptr);
-    }
+    // The old swapchain will be destroyed automatically when m_SwapChain is reset
+    // No need to manually destroy it here
     
     // Store swap chain properties
     m_SwapChainExtent = m_SwapChain->getExtent();
@@ -430,6 +426,16 @@ m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
 
 // Recreate Render Pass
     m_RenderPass = std::make_unique<RenderPass>(m_Device->get(), m_SwapChainFormat);
+    
+    // Notify ImGui layer of the resize
+    if (m_LayerStack) {
+        for (auto layer : *m_LayerStack) {
+            auto imguiLayer = dynamic_cast<ImGuiLayer*>(layer);
+            if (imguiLayer) {
+                imguiLayer->OnWindowResize(m_SwapChainExtent.width, m_SwapChainExtent.height);
+            }
+        }
+    }
     
 // Recreate Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();

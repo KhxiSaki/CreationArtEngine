@@ -22,6 +22,7 @@ public:
     const std::vector<VkImageView>& getImageViews() const;
     VkFormat getImageFormat() const;
     VkExtent2D getExtent() const;
+    void release();
 
 private:
     VkDevice m_Device;

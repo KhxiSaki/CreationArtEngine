@@ -78,3 +78,10 @@ VkExtent2D SwapChain::getExtent() const
 {
     return m_Extent;
 }
+
+void SwapChain::release()
+{
+    // Release ownership without destroying the swapchain
+    // This is used when the swapchain is passed as oldSwapchain to vkCreateSwapchainKHR
+    m_SwapChain = VK_NULL_HANDLE;
+}
