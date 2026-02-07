@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <cstdlib>
 
+#include "imgui_internal.h"
+
 #ifdef _DEBUG
 #define APP_USE_VULKAN_DEBUG_REPORT
 static VkDebugReportCallbackEXT g_DebugReport = VK_NULL_HANDLE;
@@ -104,10 +106,17 @@ void ImGuiLayer::OnAttach()
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
+    ImGui::StyleColorsDark();// Setup scaling
+    ImGuiStyle& style = ImGui::GetStyle();
+    // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForVulkan(m_Window, true);
 
@@ -164,7 +173,76 @@ void ImGuiLayer::OnUpdate(float deltaTime)
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+	
+    // Create main dockspace
+    static bool opt_fullscreen_persistant = true;
+    static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+    bool opt_fullscreen = opt_fullscreen_persistant;
+    ImGuiViewport* viewport;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+    if (opt_fullscreen)
+    {
+        viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->Pos);
+        ImGui::SetNextWindowSize(viewport->Size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    }
 
+    if (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode)
+        window_flags |= ImGuiWindowFlags_NoBackground;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("DockSpace Demo", nullptr, window_flags);
+    ImGui::PopStyleVar();
+
+    if (opt_fullscreen)
+        ImGui::PopStyleVar(2);
+
+    // DockSpace
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
+    {
+        ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+
+        // Create settings
+        if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
+        {
+            ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
+            ImGuiID dock_id_left = 0;
+            ImGuiID dock_id_main = dockspace_id;
+            ImGui::DockBuilderSplitNode(dock_id_main, ImGuiDir_Left, 0.20f, &dock_id_left, &dock_id_main);
+            ImGuiID dock_id_left_top = 0;
+            ImGuiID dock_id_left_bottom = 0;
+            ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Up, 0.50f, &dock_id_left_top, &dock_id_left_bottom);
+            ImGui::DockBuilderDockWindow("Game", dock_id_main);
+            ImGui::DockBuilderDockWindow("Properties", dock_id_left_top);
+            ImGui::DockBuilderDockWindow("Scene", dock_id_left_bottom);
+            ImGui::DockBuilderFinish(dockspace_id);
+        }
+
+        }
+
+    // Menu bar
+    if (ImGui::BeginMenuBar())
+    {
+        if (ImGui::BeginMenu("Options"))
+        {
+            if (ImGui::MenuItem("Demo Window", nullptr, m_ShowDemoWindow))
+                m_ShowDemoWindow = !m_ShowDemoWindow;
+            if (ImGui::MenuItem("Another Window", nullptr, m_ShowAnotherWindow))
+                m_ShowAnotherWindow = !m_ShowAnotherWindow;
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    ImGui::End();
     // 1. Show the big demo window
     if (m_ShowDemoWindow)
         ImGui::ShowDemoWindow(&m_ShowDemoWindow);
@@ -200,12 +278,21 @@ void ImGuiLayer::OnUpdate(float deltaTime)
             m_ShowAnotherWindow = false;
         ImGui::End();
     }
+
+    
 }
 
 void ImGuiLayer::OnRender(VkCommandBuffer commandBuffer)
 {
+    ImGuiIO& io = ImGui::GetIO();
     ImGui::Render();
     ImDrawData* draw_data = ImGui::GetDrawData();
+    // Update and Render additional Platform Windows
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
     const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
     if (!is_minimized)
     {
