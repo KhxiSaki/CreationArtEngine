@@ -1,15 +1,13 @@
 #include "Runtime/EngineCore/RHI/IRHIContext.h"
-#include "Runtime/EngineCore/RHI/Vulkan/VulkanContext.h"
-#include "Runtime/EngineCore/RHI/DirectX/DirectXContext.h"
 
 std::unique_ptr<IRHIContext> RHIContextFactory::CreateRHIContext(RHIType type)
 {
     switch (type)
     {
     case RHIType::Vulkan:
-        return std::make_unique<VulkanContext>();
+        return nullptr;
     case RHIType::DirectX12:
-        return std::make_unique<DirectXContext>();
+        return nullptr;
     case RHIType::None:
     default:
         return nullptr;
@@ -48,9 +46,9 @@ bool RHIContextFactory::IsRHIAvailable(RHIType type)
     switch (type)
     {
     case RHIType::Vulkan:
-        return VulkanContext::IsAvailable();
+        return false;
     case RHIType::DirectX12:
-        return DirectXContext::IsAvailable();
+        return false;
     case RHIType::None:
     default:
         return false;

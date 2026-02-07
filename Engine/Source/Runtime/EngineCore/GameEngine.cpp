@@ -18,8 +18,12 @@ void GameEngine::Initialize(Window* window)
     
     // Initialize the Renderer with the window
     m_Renderer = new Renderer(window);
-    m_Renderer->initialize();
     
+    if (m_Renderer && !m_Renderer->IsInitialized())
+    {
+        m_Renderer->Initialize(window);
+    }
+
     std::cout << "GameEngine initialized!" << std::endl;
     std::cout << "Renderer initialized successfully!" << std::endl;
 }
@@ -37,7 +41,7 @@ void GameEngine::Render()
 {
     if (m_Renderer)
     {
-        m_Renderer->drawFrame();
+        m_Renderer->Render();
     }
 }
 
@@ -45,7 +49,7 @@ void GameEngine::OnWindowResize()
 {
     if (m_Renderer)
     {
-        m_Renderer->onWindowResize();
+        m_Renderer->OnWindowResize();
     }
 }
 
