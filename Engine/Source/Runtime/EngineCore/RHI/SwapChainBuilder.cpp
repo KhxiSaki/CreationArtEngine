@@ -128,6 +128,13 @@ SwapChain* SwapChainBuilder::build()
     {
         throw std::runtime_error("SwapChainBuilder: Failed to create swap chain.");
     }
+    
+    // Explicitly destroy the old swapchain to ensure its images are cleaned up
+    if (m_OldSwapchain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(m_Device, m_OldSwapchain, nullptr);
+        m_OldSwapchain = VK_NULL_HANDLE;
+    }
 
     uint32_t swapChainImageCount;
     vkGetSwapchainImagesKHR(m_Device, swapChain, &swapChainImageCount, nullptr);
