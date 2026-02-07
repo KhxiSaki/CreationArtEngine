@@ -51,6 +51,13 @@ void Renderer::Shutdown()
         if (m_Device) {
             vkDeviceWaitIdle(m_Device->get());
         }
+        
+        // Shutdown ImGui first
+        if (m_ImGuiManager) {
+            m_ImGuiManager->Shutdown();
+            m_ImGuiManager.reset();
+        }
+        
         CleanupSwapChain();
         m_Initialized = false;
     }
@@ -167,9 +174,26 @@ m_Device = std::unique_ptr<Device>(DeviceBuilder()
     // Create triangle vertex buffer
     createTriangleVertexBuffer();
     
-    // Create Command Buffers and Sync Objects
+// Create Command Buffers and Sync Objects
     CreateCommandBuffers();
     CreateSyncObjects();
+    
+// Initialize ImGui
+    m_ImGuiManager = std::make_unique<ImGuiManager>();
+    
+    m_ImGuiManager->Initialize(
+        m_Instance->getInstance(),
+        m_PhysicalDevice->get(),
+        m_Device->get(),
+        m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value(),
+        m_Device->getGraphicsQueue(),
+        VK_NULL_HANDLE, // We'll use dynamic rendering
+        2, // minImageCount
+        static_cast<uint32_t>(m_SwapChain->getImages().size()),
+        m_Window->getGLFWwindow()
+    );
+    
+// ImGui will handle font upload automatically on first frame
 }
 
 void Renderer::CreateCommandBuffers()
@@ -236,7 +260,12 @@ void Renderer::drawFrame()
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    vkResetFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex]);
+vkResetFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex]);
+
+    // Update ImGui
+    if (m_ImGuiManager && m_ImGuiManager->IsInitialized()) {
+        m_ImGuiManager->NewFrame();
+    }
 
     vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0);
     recordCommandBuffer(imageIndex);
@@ -435,7 +464,12 @@ vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipe
     scissor.extent = m_SwapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+    // Render ImGui
+    if (m_ImGuiManager && m_ImGuiManager->IsInitialized()) {
+        m_ImGuiManager->Render(commandBuffer);
+    }
 
     vkCmdEndRendering(commandBuffer);
 

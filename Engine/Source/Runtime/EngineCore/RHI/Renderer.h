@@ -23,6 +23,7 @@
 #include "Runtime/EngineCore/RHI/IRHIContext.h"
 #include "Runtime/EngineCore/RHI/Model.h"
 #include "Runtime/EngineCore/RHI/Buffer.h"
+#include "Runtime/EngineCore/RHI/ImGuiManager.h"
 
 class Renderer : public IRHIContext
 {
@@ -66,8 +67,11 @@ void transition_image_layout(uint32_t imageIndex, VkImageLayout old_layout, VkIm
     std::unique_ptr<GraphicsPipeline> m_GraphicsPipeline;
     std::unique_ptr<CommandPool> m_CommandPool;
     
-    // Simple triangle vertex buffer
+// Simple triangle vertex buffer
     std::unique_ptr<Buffer> m_TriangleVertexBuffer;
+    
+    // ImGui Manager
+    std::unique_ptr<ImGuiManager> m_ImGuiManager;
     
     // Command buffers and synchronization
     std::vector<VkCommandBuffer> m_CommandBuffers;

@@ -11,10 +11,6 @@ files
 	{
 		"Source/**.h",
 		"Source/**.cpp",
-		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.h",
-		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.cpp",
-		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.h",
-		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.cpp",
 		"Source/Runtime/EngineCore/RHI/VMAImplementation.cpp"
 	}
 	
