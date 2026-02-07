@@ -7,31 +7,22 @@
 #include "PhysicalDevice.h"
 #include "Device.h"
 #include "SwapChain.h"
-#include "RenderPass.h"
 #include "GraphicsPipeline.h"
-#include "SynchronizationObjects.h"
 #include "CommandPool.h"
+#include "DeviceBuilder.h"
+#include "SwapChainBuilder.h"
+#include "GraphicsPipelineBuilder.h"
+#include "PhysicalDeviceBuilder.h"
+#include "InstanceBuilder.h"
 #include <memory>
 #include <vector>
-#include <string>
-#include <algorithm>
-#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
-#include <fstream>
-
-#if defined(__INTELLISENSE__) || !defined(USE_CPP20_MODULES)
-#	include <vulkan/vulkan_raii.hpp>
-#else
-import vulkan_hpp;
-#endif
-
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 
 #include "Runtime/EngineCore/Window.h"
 #include "Runtime/EngineCore/RHI/IRHIContext.h"
-#include <vector>
+#include "Runtime/EngineCore/RHI/Model.h"
+#include "Runtime/EngineCore/RHI/Buffer.h"
 
 class Renderer : public IRHIContext
 {
@@ -47,71 +38,50 @@ public:
 
     bool IsInitialized() const override { return m_Initialized; }
 
-    // Vulkan-specific static methods
-    static bool IsAvailable();
-
 private:
     void InitializeVulkan();
     void Cleanup();
 
-    // Vulkan initialization methods
-    void CreateInstance();
-    void SetupDebugMessenger();
-    void CreateSurface();
-    void PickPhysicalDevice();
-    void CreateLogicalDevice();
-    void CreateSwapChain();
-    void CreateImageViews();
-    void CreateGraphicsPipeline();
-    void CreateCommandPool();
+
     void CreateCommandBuffers();
     void CreateSyncObjects();
     void drawFrame();
     void CleanupSwapChain();
     void RecreateSwapChain();
     void recordCommandBuffer(uint32_t imageIndex);
-    void transition_image_layout(uint32_t imageIndex, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
-        vk::AccessFlags2 src_access_mask, vk::AccessFlags2 dst_access_mask,
-        vk::PipelineStageFlags2 src_stage_mask, vk::PipelineStageFlags2 dst_stage_mask);
+void transition_image_layout(uint32_t imageIndex, VkImageLayout old_layout, VkImageLayout new_layout,
+        VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
+        VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
+    void createTriangleVertexBuffer();
 
     // Helper functions
-    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
-    vk::raii::ShaderModule CreateShaderModule(const std::vector<char>& code) const;
-    std::vector<char> ReadFile(const std::string& filename) const;
     std::vector<const char*> getRequiredExtensions();
 
-    static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const& surfaceCapabilities);
-    static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& availableFormats);
-    static vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
+// RHI components
+    std::unique_ptr<Instance> m_Instance;
+    std::unique_ptr<Surface> m_Surface;
+    std::unique_ptr<PhysicalDevice> m_PhysicalDevice;
+    std::unique_ptr<Device> m_Device;
+    std::unique_ptr<SwapChain> m_SwapChain;
+    std::unique_ptr<GraphicsPipeline> m_GraphicsPipeline;
+    std::unique_ptr<CommandPool> m_CommandPool;
+    
+    // Simple triangle vertex buffer
+    std::unique_ptr<Buffer> m_TriangleVertexBuffer;
+    
+    // Command buffers and synchronization
+    std::vector<VkCommandBuffer> m_CommandBuffers;
+    std::vector<VkSemaphore> m_PresentCompleteSemaphores;
+    std::vector<VkSemaphore> m_RenderFinishedSemaphores;
+    std::vector<VkFence> m_DrawFences;
+    
+    // State
+    uint32_t m_QueueIndex = ~0;
+    uint32_t m_FrameIndex = 0;
+    VkExtent2D m_SwapChainExtent;
+    VkFormat m_SwapChainFormat;
 
-    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
-        vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*);
-
-    // Vulkan components
-    vk::raii::Context  m_VulkanContext;
-    vk::raii::Instance VulkanInstance = nullptr;
-    vk::raii::DebugUtilsMessengerEXT VulkanDebugMessenger = nullptr;
-    vk::raii::PhysicalDevice VulkanPhysicalDevice = nullptr;
-    vk::raii::Device VulkanLogicalDevice = nullptr;
-    vk::raii::Queue VulkanGraphicsQueue = nullptr;
-    vk::raii::SurfaceKHR VulkanSurface = nullptr;
-    vk::raii::SwapchainKHR VulkanSwapChain = nullptr;
-    std::vector<vk::Image> VulkanSwapChainImages;
-    vk::SurfaceFormatKHR VulkanSwapChainSurfaceFormat;
-    vk::Extent2D VulkanSwapChainExtent;
-    std::vector<vk::raii::ImageView> VulkanSwapChainImageViews;
-    uint32_t queueIndex = ~0;
-    uint32_t frameIndex = 0;
-
-    vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
-    vk::raii::Pipeline VulkanGraphicsPipeline = nullptr;
-    vk::raii::CommandPool VulkanCommandPool = nullptr;
-    std::vector<vk::raii::CommandBuffer> VulkanCommandBuffers;
-    std::vector<vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
-    std::vector<vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
-    std::vector<vk::raii::Fence> VulkanDrawFences;
-
-    std::vector<const char*> VulkanRequiredDeviceExtension = { vk::KHRSwapchainExtensionName };
+    std::vector<const char*> m_RequiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
     static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 };

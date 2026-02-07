@@ -175,3 +175,43 @@ project "GLM"
 	filter "configurations:Release"
 		runtime "Release"
 		optimize "on"
+
+---------------------------------------- STB Image-------------------------------------------------------
+project "stb_image"
+	kind "StaticLib"
+	language "C++"
+
+	targetdir ("stb/Binaries/" .. outputdir .. "/stb_image")
+	objdir ("stb/Intermediate/" .. outputdir .. "/stb_image")
+
+	files
+	{
+		"stb/stb_image.cpp",
+		"stb/stb_image.h",
+		"stb/stb_image_write.h",
+		"stb/stb_image_resize2.h"
+	}
+
+	includedirs
+	{
+		"stb"
+	}
+
+	filter "system:windows"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
+
+	filter "system:linux"
+		pic "On"
+		systemversion "latest"
+		cppdialect "C++23"
+		staticruntime "On"
+
+	filter "configurations:Debug"
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release"
+		runtime "Release"
+		optimize "on"

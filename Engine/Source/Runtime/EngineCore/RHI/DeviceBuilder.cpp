@@ -33,6 +33,12 @@ DeviceBuilder& DeviceBuilder::enableValidationLayers(const std::vector<const cha
     return *this;
 }
 
+DeviceBuilder& DeviceBuilder::setInstance(VkInstance instance)
+{
+    m_Instance = instance;
+    return *this;
+}
+
 DeviceBuilder& DeviceBuilder::setVulkan11Features(const VkPhysicalDeviceVulkan11Features& features)
 {
     m_Vulkan11Features = features;
@@ -56,6 +62,11 @@ DeviceBuilder& DeviceBuilder::setVulkan13Features(const VkPhysicalDeviceVulkan13
 
 Device* DeviceBuilder::build()
 {
+    // Check if queue family indices are valid
+    if (!m_QueueFamilyIndices.graphicsFamily.has_value() || !m_QueueFamilyIndices.presentFamily.has_value()) {
+        throw std::runtime_error("Queue family indices are not set!");
+    }
+
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {
         m_QueueFamilyIndices.graphicsFamily.value(),
@@ -135,6 +146,6 @@ Device* DeviceBuilder::build()
     VkQueue presentQueue;
     vkGetDeviceQueue(device, m_QueueFamilyIndices.presentFamily.value(), 0, &presentQueue);
 
-    return new Device(device, graphicsQueue, presentQueue);
+    return new Device(device, graphicsQueue, presentQueue, m_PhysicalDevice, m_Instance);
 }
 

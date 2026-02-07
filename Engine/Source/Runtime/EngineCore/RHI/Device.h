@@ -6,6 +6,7 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <vk_mem_alloc.h>
 
 namespace
 {
@@ -54,7 +55,7 @@ class PhysicalDevice;
 class Device 
 {
 public:
-    Device(VkDevice device, VkQueue graphicsQueue, VkQueue presentQueue);
+    Device(VkDevice device, VkQueue graphicsQueue, VkQueue presentQueue, VkPhysicalDevice physicalDevice, VkInstance instance);
     ~Device();
 
     Device(const Device&) = delete;
@@ -65,8 +66,10 @@ public:
     VkDevice get() const;
     VkQueue getGraphicsQueue() const;
     VkQueue getPresentQueue() const;
+    VmaAllocator getAllocator() const;
 private:
     VkDevice m_Device;
     VkQueue m_GraphicsQueue;
     VkQueue m_PresentQueue;
+    VmaAllocator m_Allocator;
 };

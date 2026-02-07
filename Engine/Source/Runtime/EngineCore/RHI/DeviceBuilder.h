@@ -16,11 +16,13 @@ public:
     DeviceBuilder& setVulkan12Features(const VkPhysicalDeviceVulkan12Features& features);
     DeviceBuilder& setVulkan13Features(const VkPhysicalDeviceVulkan13Features& features);
     DeviceBuilder& enableValidationLayers(const std::vector<const char*>& validationLayers);
+    DeviceBuilder& setInstance(VkInstance instance);
 
     Device* build();
 
 private:
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
+    VkInstance m_Instance = VK_NULL_HANDLE;
     PhysicalDevice::QueueFamilyIndices m_QueueFamilyIndices;
     std::vector<const char*> m_RequiredExtensions;
     VkPhysicalDeviceFeatures m_EnabledFeatures{};

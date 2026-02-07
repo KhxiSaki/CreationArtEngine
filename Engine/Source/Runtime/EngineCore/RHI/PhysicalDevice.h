@@ -39,6 +39,7 @@ public:
     };
 
     SwapChainSupportDetails querySwapChainSupport() const;
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) const;
 
     const VkPhysicalDeviceFeatures& getFeatures() const;
     const VkPhysicalDeviceVulkan11Features& getVulkan11Features() const;

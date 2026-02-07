@@ -102,16 +102,16 @@ void PhysicalDevice::pickPhysicalDevice()
         vkGetPhysicalDeviceProperties(device, &deviceProperties);
         std::cout << "Checking device: " << deviceProperties.deviceName << std::endl;
 
-        m_PhysicalDevice = device;
         if (isDeviceSuitable(device))
         {
             std::cout << "Found suitable device: " << deviceProperties.deviceName << std::endl;
+            m_PhysicalDevice = device;
             m_QueueFamilyIndices = findQueueFamilies(device);
             m_SwapChainSupportDetails = querySwapChainSupport();
             break;
         }
     }
-    if (!checkFeatureSupport(m_PhysicalDevice))
+    if (m_PhysicalDevice != VK_NULL_HANDLE && !checkFeatureSupport(m_PhysicalDevice))
     {
         throw std::runtime_error("Required features are not supported by the selected physical device.");
     }
@@ -147,6 +147,22 @@ bool PhysicalDevice::checkFeatureSupport(VkPhysicalDevice device)
     if (m_RequiredFeatures.samplerAnisotropy && !supportedFeatures2.features.samplerAnisotropy)
     {
         return false;
+    }
+
+    // Check Vulkan 1.3 features (especially dynamic rendering)
+    if (m_UseVulkan13Features)
+    {
+        if (!supportedVulkan13Features.dynamicRendering)
+        {
+            std::cout << "Device does not support dynamic rendering!" << std::endl;
+            return false;
+        }
+        
+        if (!supportedVulkan13Features.synchronization2)
+        {
+            std::cout << "Device does not support synchronization2!" << std::endl;
+            return false;
+        }
     }
  
     // Check Vulkan 1.1 features
@@ -189,9 +205,13 @@ bool PhysicalDevice::isDeviceSuitable(VkPhysicalDevice device)
     bool swapChainAdequate = false;
     bool storageImageSupported = false;
 
+    std::cout << "  - Graphics queue family: " << (indices.graphicsFamily.has_value() ? "FOUND" : "NOT FOUND") << std::endl;
+    std::cout << "  - Present queue family: " << (indices.presentFamily.has_value() ? "FOUND" : "NOT FOUND") << std::endl;
+    std::cout << "  - Extensions supported: " << (extensionsSupported ? "YES" : "NO") << std::endl;
+
     if (extensionsSupported)
     {
-        auto swapChainSupport = querySwapChainSupport();
+        auto swapChainSupport = querySwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 
         // Check if swapchain supports storage image usage
@@ -206,6 +226,9 @@ bool PhysicalDevice::isDeviceSuitable(VkPhysicalDevice device)
         else {
             std::cerr << "Device DOES NOT support storage images for swapchain" << std::endl;
         }
+        
+        std::cout << "  - Swap chain adequate: " << (swapChainAdequate ? "YES" : "NO") << std::endl;
+        std::cout << "  - Storage image supported: " << (storageImageSupported ? "YES" : "NO") << std::endl;
     }
 
     VkPhysicalDeviceFeatures supportedFeatures;
@@ -214,12 +237,24 @@ bool PhysicalDevice::isDeviceSuitable(VkPhysicalDevice device)
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
 
-    return indices.isComplete()
+    bool isDiscreteGPU = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+    bool anisotropySupported = !m_RequiredFeatures.samplerAnisotropy || supportedFeatures.samplerAnisotropy;
+    
+    std::cout << "  - Is discrete GPU: " << (isDiscreteGPU ? "YES" : "NO") << std::endl;
+    std::cout << "  - Required anisotropy: " << (m_RequiredFeatures.samplerAnisotropy ? "YES" : "NO") << std::endl;
+    std::cout << "  - Supported anisotropy: " << (supportedFeatures.samplerAnisotropy ? "YES" : "NO") << std::endl;
+    std::cout << "  - Anisotropy supported: " << (anisotropySupported ? "YES" : "NO") << std::endl;
+
+    bool suitable = indices.isComplete()
         && extensionsSupported
         && swapChainAdequate
-        && supportedFeatures.samplerAnisotropy == m_RequiredFeatures.samplerAnisotropy
-        && deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+        && anisotropySupported
+        && isDiscreteGPU
         && storageImageSupported; // Add storage image support as a requirement
+        
+    std::cout << "  - Device is suitable: " << (suitable ? "YES" : "NO") << std::endl;
+
+    return suitable;
 }
 
 PhysicalDevice::QueueFamilyIndices PhysicalDevice::findQueueFamilies(VkPhysicalDevice device) const
@@ -276,24 +311,29 @@ bool PhysicalDevice::checkDeviceExtensionSupport(VkPhysicalDevice device) const
 
 PhysicalDevice::SwapChainSupportDetails PhysicalDevice::querySwapChainSupport() const
 {
+    return querySwapChainSupport(m_PhysicalDevice);
+}
+
+PhysicalDevice::SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkPhysicalDevice device) const
+{
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, m_Surface, &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_Surface, &details.capabilities);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatCount, nullptr);
     if (formatCount != 0)
     {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_Surface, &formatCount, details.formats.data());
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, m_Surface, &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentModeCount, nullptr);
     if (presentModeCount != 0)
     {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, m_Surface, &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_Surface, &presentModeCount, details.presentModes.data());
     }
 
     return details;

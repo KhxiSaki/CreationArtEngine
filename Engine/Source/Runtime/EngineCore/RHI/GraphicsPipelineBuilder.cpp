@@ -109,6 +109,26 @@ GraphicsPipeline* GraphicsPipelineBuilder::build() {
     // Load shader code
     auto vertShaderCode = readFile(m_VertShaderPath);
     auto fragShaderCode = readFile(m_FragShaderPath);
+    
+    std::cout << "Vertex shader code size: " << vertShaderCode.size() << " bytes" << std::endl;
+    std::cout << "Fragment shader code size: " << fragShaderCode.size() << " bytes" << std::endl;
+    
+    // Print first 8 bytes to verify SPIR-V magic number
+    if (vertShaderCode.size() >= 4) {
+        uint32_t magic = *reinterpret_cast<const uint32_t*>(vertShaderCode.data());
+        std::cout << "Vertex shader magic: 0x" << std::hex << magic << std::dec << std::endl;
+    }
+    if (fragShaderCode.size() >= 4) {
+        uint32_t magic = *reinterpret_cast<const uint32_t*>(fragShaderCode.data());
+        std::cout << "Fragment shader magic: 0x" << std::hex << magic << std::dec << std::endl;
+    }
+    
+    if (vertShaderCode.empty()) {
+        std::cout << "ERROR: Vertex shader code is empty!" << std::endl;
+    }
+    if (fragShaderCode.empty()) {
+        std::cout << "ERROR: Fragment shader code is empty!" << std::endl;
+    }
 
     // Create shader modules
     VkShaderModule vertShaderModule = createShaderModule(m_Device, vertShaderCode);
@@ -244,8 +264,14 @@ GraphicsPipeline* GraphicsPipelineBuilder::build() {
     // Pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &m_DescriptorSetLayout;
+    if (m_DescriptorSetLayout != VK_NULL_HANDLE) {
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &m_DescriptorSetLayout;
+    }
+    else {
+        pipelineLayoutInfo.setLayoutCount = 0;
+        pipelineLayoutInfo.pSetLayouts = nullptr;
+    }
     if (m_PushConstantSize > 0) {
         pipelineLayoutInfo.pushConstantRangeCount = 1;
         pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
