@@ -14,6 +14,7 @@ public:
     SwapChainBuilder& setGraphicsFamilyIndex(uint32_t index);
     SwapChainBuilder& setPresentFamilyIndex(uint32_t index);
 	SwapChainBuilder& setImageUsage(VkImageUsageFlags usage);
+	SwapChainBuilder& setOldSwapchain(VkSwapchainKHR oldSwapchain);
 
     SwapChain* build();
 
@@ -39,4 +40,5 @@ private:
     uint32_t m_GraphicsFamilyIndex{ 0 };
     uint32_t m_PresentFamilyIndex{ 0 };
 	VkImageUsageFlags m_ImageUsage{ VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT };
+	VkSwapchainKHR m_OldSwapchain{ VK_NULL_HANDLE };
 };

@@ -1,24 +1,20 @@
 #include "Renderer.h"
-#include "InstanceBuilder.h"
-#include "PhysicalDeviceBuilder.h"
-#include "DeviceBuilder.h"
-#include "SwapChainBuilder.h"
-#include "GraphicsPipelineBuilder.h"
 #include <stdexcept>
 #include <iostream>
 #include <glm/glm.hpp>
+
+#include "Runtime/EngineCore/RHI/DeviceBuilder.h"
+#include "Runtime/EngineCore/RHI/PhysicalDeviceBuilder.h"
+#include "Runtime/EngineCore/RHI/SwapChainBuilder.h"
+#include "Runtime/EngineCore/Rendering/Layer.h"
+#include "Runtime/EngineCore/Rendering/ImGuiLayer.h"
 
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
 
-// Simple triangle vertices
-const std::vector<Vertex> triangleVertices = {
-    {{0.0f, -0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}
-};
+
 
 #ifdef NDEBUG
 constexpr bool enableValidationLayers = false;
@@ -41,6 +37,11 @@ void Renderer::Initialize(Window* window)
 {
     m_Window = window;
     InitializeVulkan();
+    if (m_LayerStack) {
+        for (auto layer : *m_LayerStack) {
+            layer->OnAttach();
+        }
+    }
     m_Initialized = true;
 }
 
@@ -52,10 +53,12 @@ void Renderer::Shutdown()
             vkDeviceWaitIdle(m_Device->get());
         }
         
-        // Shutdown ImGui first
-        if (m_ImGuiManager) {
-            m_ImGuiManager->Shutdown();
-            m_ImGuiManager.reset();
+// Shutdown layers first
+        if (m_LayerStack) {
+            for (auto layer : *m_LayerStack) {
+                layer->OnDetach();
+            }
+            m_LayerStack.reset();
         }
         
         CleanupSwapChain();
@@ -71,6 +74,21 @@ void Renderer::Render()
     }
 }
 
+void Renderer::UpdateLayers(float deltaTime)
+{
+    if (m_Initialized)
+    {
+        // Update all layers
+        for (auto layer : *m_LayerStack)
+        {
+            if (layer->IsEnabled())
+            {
+                layer->OnUpdate(deltaTime);
+            }
+        }
+    }
+}
+
 void Renderer::OnWindowResize()
 {
     if (m_Initialized)
@@ -79,32 +97,7 @@ void Renderer::OnWindowResize()
     }
 }
 
-void Renderer::createTriangleVertexBuffer()
-{
-    VkDeviceSize bufferSize = sizeof(triangleVertices[0]) * triangleVertices.size();
 
-    Buffer stagingBuffer(
-        m_Device->getAllocator(),
-        bufferSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VMA_MEMORY_USAGE_CPU_ONLY,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-    );
-
-    void* data = stagingBuffer.map();
-    memcpy(data, triangleVertices.data(), static_cast<size_t>(bufferSize));
-    stagingBuffer.unmap();
-    stagingBuffer.flush();
-
-    m_TriangleVertexBuffer = std::make_unique<Buffer>(
-        m_Device->getAllocator(),
-        bufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY
-    );
-
-    stagingBuffer.copyTo(m_CommandPool.get(), m_Device->getGraphicsQueue(), m_TriangleVertexBuffer.get());
-}
 
 void Renderer::InitializeVulkan()
 {
@@ -114,17 +107,11 @@ void Renderer::InitializeVulkan()
     // Create Surface
     m_Surface = std::make_unique<Surface>(m_Instance->getInstance(), m_Window->getGLFWwindow());
     
-// Pick and create Physical Device with dynamic rendering support
-    VkPhysicalDeviceVulkan13Features vulkan13Features{};
-    vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-    vulkan13Features.dynamicRendering = VK_TRUE;
-    vulkan13Features.synchronization2 = VK_TRUE;
-    
+// Pick and create Physical Device
     m_PhysicalDevice = std::unique_ptr<PhysicalDevice>(PhysicalDeviceBuilder()
         .setInstance(m_Instance->getInstance())
         .setSurface(m_Surface->get())
         .addRequiredExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-        .setVulkan13Features(vulkan13Features)
         .build());
     
 // Create Logical Device using builder
@@ -138,7 +125,6 @@ m_Device = std::unique_ptr<Device>(DeviceBuilder()
         .setInstance(m_Instance->getInstance())
         .setQueueFamilyIndices(queueIndices)
         .addRequiredExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-        .setVulkan13Features(vulkan13Features)
         .build());
     
 // Create Swap Chain using builder
@@ -152,48 +138,30 @@ m_Device = std::unique_ptr<Device>(DeviceBuilder()
         .setPresentFamilyIndex(queueIndices.presentFamily.value())
         .build());
     
-    // Store swap chain properties
+// Store swap chain properties
     m_SwapChainExtent = m_SwapChain->getExtent();
     m_SwapChainFormat = m_SwapChain->getImageFormat();
     
-// Create Graphics Pipeline using builder with vertex input
-    m_GraphicsPipeline = std::unique_ptr<GraphicsPipeline>(GraphicsPipelineBuilder()
-        .setDevice(m_Device->get())
-        .setSwapChainExtent(m_SwapChainExtent)
-        .setShaderPaths("E:/CreationArtEngine/Engine/Binaries/Shaders/ShaderType_Vertex.spv", 
-                        "E:/CreationArtEngine/Engine/Binaries/Shaders/ShaderTypes_Fragment.spv")
-        .setColorFormats({ m_SwapChainFormat })
-        .setAttachmentCount(1)
-        .setVertexInputBindingDescription(Vertex::getBindingDescription())
-        .setVertexInputAttributeDescriptions(Vertex::getAttributeDescriptions())
-        .build());
+// Create Render Pass
+    m_RenderPass = std::make_unique<RenderPass>(m_Device->get(), m_SwapChainFormat);
     
 // Create Command Pool
     m_CommandPool = std::make_unique<CommandPool>(m_Device->get(), m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value());
     
-    // Create triangle vertex buffer
-    createTriangleVertexBuffer();
-    
-// Create Command Buffers and Sync Objects
+// Create Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();
+    CreateFramebuffers();
     CreateSyncObjects();
     
-// Initialize ImGui
-    m_ImGuiManager = std::make_unique<ImGuiManager>();
+// Initialize Layer Stack
+    m_LayerStack = std::make_unique<LayerStack>();
     
-    m_ImGuiManager->Initialize(
-        m_Instance->getInstance(),
-        m_PhysicalDevice->get(),
-        m_Device->get(),
-        m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value(),
-        m_Device->getGraphicsQueue(),
-        VK_NULL_HANDLE, // We'll use dynamic rendering
-        2, // minImageCount
-        static_cast<uint32_t>(m_SwapChain->getImages().size()),
-        m_Window->getGLFWwindow()
-    );
+    // Create and add ImGui Layer
+    auto imguiLayer = new ImGuiLayer();
+    imguiLayer->SetRendererContext(this);
+    m_LayerStack->PushLayer(imguiLayer);
     
-// ImGui will handle font upload automatically on first frame
+    std::cout << "Layer system initialized with ImGui layer" << std::endl;
 }
 
 void Renderer::CreateCommandBuffers()
@@ -208,6 +176,30 @@ void Renderer::CreateCommandBuffers()
 
     if (vkAllocateCommandBuffers(m_Device->get(), &allocInfo, m_CommandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
+    }
+}
+
+void Renderer::CreateFramebuffers()
+{
+    m_Framebuffers.resize(m_SwapChain->getImageViews().size());
+
+    for (size_t i = 0; i < m_SwapChain->getImageViews().size(); i++) {
+        VkImageView attachments[] = {
+            m_SwapChain->getImageViews()[i]
+        };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = m_RenderPass->get();
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = m_SwapChainExtent.width;
+        framebufferInfo.height = m_SwapChainExtent.height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(m_Device->get(), &framebufferInfo, nullptr, &m_Framebuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create framebuffer!");
+        }
     }
 }
 
@@ -262,10 +254,8 @@ void Renderer::drawFrame()
 
 vkResetFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex]);
 
-    // Update ImGui
-    if (m_ImGuiManager && m_ImGuiManager->IsInitialized()) {
-        m_ImGuiManager->NewFrame();
-    }
+// Update layers (this will call ImGui NewFrame)
+    UpdateLayers(0.016f); // Assume 60 FPS for now
 
     vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0);
     recordCommandBuffer(imageIndex);
@@ -323,6 +313,12 @@ void Renderer::CleanupSwapChain()
         vkDeviceWaitIdle(m_Device->get());
     }
     
+    // Clean up framebuffers
+    for (auto framebuffer : m_Framebuffers) {
+        vkDestroyFramebuffer(m_Device->get(), framebuffer, nullptr);
+    }
+    m_Framebuffers.clear();
+    
     // Clean up synchronization objects
     for (auto semaphore : m_RenderFinishedSemaphores) {
         vkDestroySemaphore(m_Device->get(), semaphore, nullptr);
@@ -347,8 +343,48 @@ void Renderer::CleanupSwapChain()
     }
     m_CommandBuffers.clear();
     
-    // Clean up swap chain
+// Clean up swap chain
     m_SwapChain.reset();
+}
+
+void Renderer::CleanupSwapChainResources()
+{
+    if (m_Device) {
+        vkDeviceWaitIdle(m_Device->get());
+    }
+    
+    // Clean up framebuffers
+    for (auto framebuffer : m_Framebuffers) {
+        vkDestroyFramebuffer(m_Device->get(), framebuffer, nullptr);
+    }
+    m_Framebuffers.clear();
+    
+    // Clean up synchronization objects
+    for (auto semaphore : m_RenderFinishedSemaphores) {
+        vkDestroySemaphore(m_Device->get(), semaphore, nullptr);
+    }
+    m_RenderFinishedSemaphores.clear();
+    
+    for (auto semaphore : m_PresentCompleteSemaphores) {
+        vkDestroySemaphore(m_Device->get(), semaphore, nullptr);
+    }
+    m_PresentCompleteSemaphores.clear();
+    
+    for (auto fence : m_DrawFences) {
+        vkDestroyFence(m_Device->get(), fence, nullptr);
+    }
+    m_DrawFences.clear();
+    
+    // Clean up command buffers
+    if (!m_CommandBuffers.empty() && m_CommandPool) {
+        vkFreeCommandBuffers(m_Device->get(), m_CommandPool->get(), 
+                           static_cast<uint32_t>(m_CommandBuffers.size()), 
+                           m_CommandBuffers.data());
+    }
+    m_CommandBuffers.clear();
+    
+    // Clean up render pass
+    m_RenderPass.reset();
 }
 
 void Renderer::RecreateSwapChain()
@@ -360,40 +396,44 @@ void Renderer::RecreateSwapChain()
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(m_Device->get());
+vkDeviceWaitIdle(m_Device->get());
 
-    CleanupSwapChain();
+    // Store old swapchain handle before cleanup
+    VkSwapchainKHR oldSwapchain = m_SwapChain ? m_SwapChain->get() : VK_NULL_HANDLE;
+
+    // Clean up only the resources that depend on the swapchain, but keep the swapchain itself
+    CleanupSwapChainResources();
     
 // Recreate Swap Chain using builder
     const auto& queueIndices = m_PhysicalDevice->getQueueFamilyIndices();
-    m_SwapChain = std::unique_ptr<SwapChain>(SwapChainBuilder()
-        .setDevice(m_Device->get())
-        .setPhysicalDevice(m_PhysicalDevice->get())
-        .setSurface(m_Surface->get())
-        .setWidth(width)
-        .setHeight(height)
-        .setGraphicsFamilyIndex(queueIndices.graphicsFamily.value())
-        .setPresentFamilyIndex(queueIndices.presentFamily.value())
-        .build());
+    SwapChainBuilder builder;
+    builder.setDevice(m_Device->get())
+           .setPhysicalDevice(m_PhysicalDevice->get())
+           .setSurface(m_Surface->get())
+           .setWidth(width)
+           .setHeight(height)
+           .setGraphicsFamilyIndex(queueIndices.graphicsFamily.value())
+           .setPresentFamilyIndex(queueIndices.presentFamily.value())
+           .setOldSwapchain(oldSwapchain);
+    
+m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
+    
+    // Now destroy the old swapchain
+    if (oldSwapchain != VK_NULL_HANDLE)
+    {
+        vkDestroySwapchainKHR(m_Device->get(), oldSwapchain, nullptr);
+    }
     
     // Store swap chain properties
     m_SwapChainExtent = m_SwapChain->getExtent();
     m_SwapChainFormat = m_SwapChain->getImageFormat();
+
+// Recreate Render Pass
+    m_RenderPass = std::make_unique<RenderPass>(m_Device->get(), m_SwapChainFormat);
     
-    // Recreate Graphics Pipeline using builder
-    m_GraphicsPipeline = std::unique_ptr<GraphicsPipeline>(GraphicsPipelineBuilder()
-        .setDevice(m_Device->get())
-        .setSwapChainExtent(m_SwapChainExtent)
-        .setShaderPaths("E:/CreationArtEngine/Engine/Binaries/Shaders/ShaderType_Vertex.spv", 
-                        "E:/CreationArtEngine/Engine/Binaries/Shaders/ShaderTypes_Fragment.spv")
-        .setColorFormats({ m_SwapChainFormat })
-        .setAttachmentCount(1)
-        .setVertexInputBindingDescription(Vertex::getBindingDescription())
-        .setVertexInputAttributeDescriptions(Vertex::getAttributeDescriptions())
-        .build());
-    
-    // Recreate Command Buffers and Sync Objects
+// Recreate Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();
+    CreateFramebuffers();
     CreateSyncObjects();
 }
 
@@ -408,48 +448,24 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
         throw std::runtime_error("failed to begin recording command buffer!");
     }
 
-    // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
-    transition_image_layout(
-        imageIndex,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        0,                                                        // srcAccessMask (no need to wait for previous operations)
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,                     // dstAccessMask
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,            // srcStage
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT             // dstStage
-    );
-
-VkClearValue clearColor = {};
+    VkClearValue clearColor = {};
     clearColor.color.float32[0] = 0.0f; // Dark red background
     clearColor.color.float32[1] = 0.0f;
     clearColor.color.float32[2] = 0.0f;
     clearColor.color.float32[3] = 1.0f;
 
-    VkRenderingAttachmentInfo attachmentInfo{};
-    attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    attachmentInfo.imageView = m_SwapChain->getImageViews()[imageIndex];
-    attachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    attachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachmentInfo.clearValue = clearColor;
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = m_RenderPass->get();
+    renderPassInfo.framebuffer = m_Framebuffers[imageIndex];
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = m_SwapChainExtent;
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
 
-    VkRenderingInfo renderingInfo{};
-    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderingInfo.renderArea.offset = {0, 0};
-    renderingInfo.renderArea.extent = m_SwapChainExtent;
-    renderingInfo.layerCount = 1;
-    renderingInfo.colorAttachmentCount = 1;
-    renderingInfo.pColorAttachments = &attachmentInfo;
+vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBeginRendering(commandBuffer, &renderingInfo);
-
-vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipeline->get());
-
-    // Bind vertex buffer
-    VkBuffer vertexBuffers[] = { m_TriangleVertexBuffer->get() };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
+    // Set viewport and scissor
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -464,25 +480,16 @@ vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipe
     scissor.extent = m_SwapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-
-    // Render ImGui
-    if (m_ImGuiManager && m_ImGuiManager->IsInitialized()) {
-        m_ImGuiManager->Render(commandBuffer);
+    // Render all layers
+    for (auto layer : *m_LayerStack)
+    {
+        if (layer->IsEnabled())
+        {
+            layer->OnRender(commandBuffer);
+        }
     }
 
-    vkCmdEndRendering(commandBuffer);
-
-    // After rendering, transition the swapchain image to PRESENT_SRC
-    transition_image_layout(
-        imageIndex,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,                        // srcAccessMask
-        0,                                                           // dstAccessMask
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,               // srcStage
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT                         // dstStage
-    );
+    vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to record command buffer!");
@@ -533,4 +540,9 @@ std::vector<const char*> Renderer::getRequiredExtensions() {
     }
 
     return extensions;
+}
+
+Window* Renderer::GetWindow() const
+{
+    return m_Window;
 }

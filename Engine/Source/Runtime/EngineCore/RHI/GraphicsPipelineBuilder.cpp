@@ -288,18 +288,9 @@ GraphicsPipeline* GraphicsPipelineBuilder::build() {
         throw std::runtime_error("Failed to create pipeline layout");
     }
 
-    // Pipeline Rendering
-    VkPipelineRenderingCreateInfo renderingCreateInfo{};
-    renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    renderingCreateInfo.colorAttachmentCount = static_cast<uint32_t>(m_ColorFormats.size());
-    renderingCreateInfo.pColorAttachmentFormats = m_ColorFormats.data();
-    renderingCreateInfo.depthAttachmentFormat = m_DepthFormat;
-    renderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
-
     // Graphics pipeline
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.pNext = &renderingCreateInfo; // Attach rendering info
     pipelineInfo.stageCount = 2;
     pipelineInfo.pStages = shaderStages;
     pipelineInfo.pVertexInputState = &vertexInputInfo;
@@ -311,7 +302,7 @@ GraphicsPipeline* GraphicsPipelineBuilder::build() {
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = VK_NULL_HANDLE; // No render pass
+    pipelineInfo.renderPass = m_RenderPass;
     pipelineInfo.subpass = 0;
 
     // Create the graphics pipeline

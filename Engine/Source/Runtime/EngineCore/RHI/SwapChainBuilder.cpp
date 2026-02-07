@@ -52,6 +52,12 @@ SwapChainBuilder& SwapChainBuilder::setImageUsage(VkImageUsageFlags usage)
 	return *this;
 }
 
+SwapChainBuilder& SwapChainBuilder::setOldSwapchain(VkSwapchainKHR oldSwapchain)
+{
+	m_OldSwapchain = oldSwapchain;
+	return *this;
+}
+
 SwapChain* SwapChainBuilder::build()
 {
     if (m_Device == VK_NULL_HANDLE || m_PhysicalDevice == VK_NULL_HANDLE || m_Surface == VK_NULL_HANDLE)
@@ -115,7 +121,7 @@ SwapChain* SwapChainBuilder::build()
     createInfo.compositeAlpha = compositeAlpha; // Use the dynamically selected compositeAlpha
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.oldSwapchain = m_OldSwapchain; // Use old swapchain for recreation
 
     VkSwapchainKHR swapChain;
     if (vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
