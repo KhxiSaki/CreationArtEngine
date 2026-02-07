@@ -1,20 +1,22 @@
 #version 450
 
+// Input vertex attributes matching the Vertex struct layout
+layout(location = 0) in vec3 inPos;
+layout(location = 1) in vec2 inTexCoord;
+layout(location = 2) in vec3 inNormal;
+layout(location = 3) in vec3 inTangent;
+layout(location = 4) in vec3 inBitangent;
+
+// Output to fragment shader
 layout(location = 0) out vec3 fragColor;
 
-vec2 positions[3] = vec2[](
-    vec2(0.0, -0.5),
-    vec2(0.5, 0.5),
-    vec2(-0.5, 0.5)
-);
-
-vec3 colors[3] = vec3[](
-    vec3(1.0, 0.0, 0.0),
-    vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 0.0, 1.0)
-);
-
 void main() {
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    fragColor = colors[gl_VertexIndex];
+    gl_Position = vec4(inPos, 1.0);
+    
+    // Generate color based on position - this will consume the inPos attribute
+    fragColor = vec3(
+        inPos.x + 0.5,  // Map X [-0.5, 0.5] to [0.0, 1.0] (red)
+        inPos.y + 0.5,  // Map Y [-0.5, 0.5] to [0.0, 1.0] (green)  
+        1.0             // Always full blue for visibility
+    );
 }

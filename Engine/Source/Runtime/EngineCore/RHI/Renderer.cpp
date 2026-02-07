@@ -359,6 +359,8 @@ void Renderer::RecreateSwapChain()
                         "E:/CreationArtEngine/Engine/Binaries/Shaders/ShaderTypes_Fragment.spv")
         .setColorFormats({ m_SwapChainFormat })
         .setAttachmentCount(1)
+        .setVertexInputBindingDescription(Vertex::getBindingDescription())
+        .setVertexInputAttributeDescriptions(Vertex::getAttributeDescriptions())
         .build());
     
     // Recreate Command Buffers and Sync Objects
