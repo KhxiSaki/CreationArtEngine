@@ -1,6 +1,7 @@
 #include "GameEngine.h"
-#include "RHI/Renderer.h"
 #include <iostream>
+
+#include "Rendering/Renderer.h"
 
 GameEngine::GameEngine()
     : m_Renderer(nullptr)
