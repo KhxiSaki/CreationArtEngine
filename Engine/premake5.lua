@@ -14,7 +14,8 @@ files
 		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.h",
 		"%{IncludeDir.ImGui}/backends/imgui_impl_glfw.cpp",
 		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.h",
-		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.cpp"
+		"%{IncludeDir.ImGui}/backends/imgui_impl_vulkan.cpp",
+		"Source/Runtime/EngineCore/RHI/VMAImplementation.cpp"
 	}
 	
 includedirs
@@ -26,6 +27,9 @@ includedirs
 		"%{IncludeDir.ImGui}/backends",
 		"%{IncludeDir.VulkanSDK}",
 		"%{IncludeDir.GLM}",
+		"%{IncludeDir.VMA}",
+		"%{IncludeDir.VMA}/include",
+		"%{IncludeDir.stb}",
 	}
 	
 links
@@ -45,7 +49,7 @@ links
 filter "system:windows"
 		systemversion "latest"
 
-		defines
+defines
 		{
 			"CAE_PLATFORM_WINDOWS"
 		}

@@ -51,5 +51,19 @@ DEPENDENCIES: list[Dependency] = [
         url="https://github.com/g-truc/glm/archive/refs/tags/1.0.3.zip",
         install_path=f"{THIRD_PARTY_DIR}/GLM",
         extracted_folder="GLM"
+    ),
+Dependency(
+        name="VulkanMemoryAllocator",
+        version="3.3.0",
+        url="https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/archive/refs/tags/v3.3.0.zip",
+        install_path=f"{THIRD_PARTY_DIR}/VulkanMemoryAllocator",
+        extracted_folder="VulkanMemoryAllocator"
+    ),
+    Dependency(
+        name="stb",
+        version="master",
+        url="https://github.com/nothings/stb/archive/refs/heads/master.zip",
+        install_path=f"{THIRD_PARTY_DIR}/stb",
+        extracted_folder="stb-master"
     )
 ]

@@ -1,5 +1,5 @@
-#include "Runtime/EngineCore/Application.h"
-#include "Runtime/EngineCore/RHI/RHIManager.h"
+#include "Application.h"
+#include <iostream>
 
 Application::Application()
 {
@@ -19,21 +19,19 @@ void Application::Run()
 
 void Application::InitializeWindow()
 {
+    std::cout << "Creating window..." << std::endl;
     m_Window = new Window("CreationArtEngine", 800, 600);
+    std::cout << "Window created successfully!" << std::endl;
 }
 
 void Application::InitializeEngine()
 {
+    std::cout << "Initializing engine..." << std::endl;
     m_Engine = std::make_unique<GameEngine>();
     
-    // Get RHI preference from manager
-    auto& rhiManager = RHIManager::GetInstance();
-    RHIType preferredRHI = rhiManager.GetPreferredRHI();
-    
-    // Print RHI info for debugging
-    rhiManager.PrintRHIInfo();
-    
-    m_Engine->Initialize(m_Window, preferredRHI);
+    std::cout << "Initializing engine with window..." << std::endl;
+    m_Engine->Initialize(m_Window);
+    std::cout << "Engine initialized successfully!" << std::endl;
 }
 
 void Application::MainLoop()
@@ -41,6 +39,7 @@ void Application::MainLoop()
     while (!m_Window->closed()) {
         m_Window->Update(); 
         m_Engine->Render();
+        
     }
 }
 

@@ -1,7 +1,9 @@
-#include "Runtime/EngineCore/GameEngine.h"
+#include "GameEngine.h"
+#include "RHI/Renderer.h"
+#include <iostream>
 
 GameEngine::GameEngine()
-    : m_CurrentRHI(RHIType::None)
+    : m_Renderer(nullptr)
 {
 }
 
@@ -10,96 +12,44 @@ GameEngine::~GameEngine()
     Shutdown();
 }
 
-void GameEngine::Initialize(Window* window, RHIType preferredRHI)
+void GameEngine::Initialize(Window* window)
 {
     m_Window = window;
     
-    // Try to create the preferred RHI context
-    m_RHIContext = RHIContextFactory::CreateRHIContext(preferredRHI);
+    // Initialize the Renderer with the window
+    m_Renderer = new Renderer(window);
+    m_Renderer->initialize();
     
-    if (!m_RHIContext)
-    {
-        // Fallback to available RHI
-        auto availableRHIs = RHIContextFactory::GetAvailableRHIs();
-        if (!availableRHIs.empty())
-        {
-            m_RHIContext = RHIContextFactory::CreateRHIContext(availableRHIs[0]);
-            m_CurrentRHI = availableRHIs[0];
-        }
-    }
-    else
-    {
-        m_CurrentRHI = preferredRHI;
-    }
-    
-    if (m_RHIContext)
-    {
-        m_RHIContext->Initialize(window);
-        std::cout << "GameEngine initialized with " << m_RHIContext->GetName() << " RHI" << std::endl;
-    }
-    else
-    {
-        throw std::runtime_error("Failed to initialize any RHI context!");
-    }
+    std::cout << "GameEngine initialized!" << std::endl;
+    std::cout << "Renderer initialized successfully!" << std::endl;
 }
 
 void GameEngine::Shutdown()
 {
-    if (m_RHIContext)
+    if (m_Renderer)
     {
-        m_RHIContext->Shutdown();
-        m_RHIContext.reset();
-        m_CurrentRHI = RHIType::None;
+        delete m_Renderer;
+        m_Renderer = nullptr;
     }
 }
 
 void GameEngine::Render()
 {
-    if (m_RHIContext)
+    if (m_Renderer)
     {
-        m_RHIContext->Render();
+        m_Renderer->drawFrame();
     }
 }
 
 void GameEngine::OnWindowResize()
 {
-    if (m_RHIContext)
+    if (m_Renderer)
     {
-        m_RHIContext->OnWindowResize();
+        m_Renderer->onWindowResize();
     }
 }
 
-RHIType GameEngine::GetCurrentRHI() const
+bool GameEngine::IsInitialized() const
 {
-    return m_CurrentRHI;
-}
-
-const char* GameEngine::GetCurrentRHIName() const
-{
-    return RHIContextFactory::GetRHIName(m_CurrentRHI);
-}
-
-bool GameEngine::SetRHI(RHIType type)
-{
-    if (m_CurrentRHI == type)
-        return true;
-    
-    // Shutdown current RHI
-    if (m_RHIContext)
-    {
-        m_RHIContext->Shutdown();
-        m_RHIContext.reset();
-    }
-    
-    // Create new RHI context
-    m_RHIContext = RHIContextFactory::CreateRHIContext(type);
-    if (m_RHIContext && m_Window)
-    {
-        m_RHIContext->Initialize(m_Window);
-        m_CurrentRHI = type;
-        std::cout << "Switched to " << m_RHIContext->GetName() << " RHI" << std::endl;
-        return true;
-    }
-    
-    return false;
+    return m_Renderer != nullptr;
 }

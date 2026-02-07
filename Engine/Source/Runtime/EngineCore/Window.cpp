@@ -191,3 +191,8 @@ void mouse_position_callback(GLFWwindow* window, double xpos, double ypos)
     wind->lastMouseX = xpos;
     wind->lastMouseY = ypos;
 }
+
+void Window::pollEvents()
+{
+    glfwPollEvents();
+}

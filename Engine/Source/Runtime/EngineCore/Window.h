@@ -40,8 +40,12 @@ public:
     /// Gets the current window's pointer to it's native object.
     inline GLFWwindow* getGLFWwindow() const { return m_Window; }
 
-    bool IsResized() {return m_IsResized; }
-    void SetResizedFalse() { m_IsResized = false; }
+     bool IsResized() {return m_IsResized; }
+     void SetResizedFalse() { m_IsResized = false; }
+     bool isFramebufferResized() { return m_IsResized; }
+     void resetFramebufferResized() { m_IsResized = false; }
+     void getFramebufferSize(int* width, int* height) { *width = m_Width; *height = m_Height; }
+     void pollEvents();
     /// Tells if a particular key on the keyboard was pressed or not.
     bool isKeyPressed(unsigned int keycode);
     /// Tells if a particular key on the keyboard was released or not.

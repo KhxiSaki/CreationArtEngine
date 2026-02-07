@@ -2,8 +2,9 @@
 
 #include <memory>
 #include "Window.h"
-#include "RHI/IRHIContext.h"
-#include "Runtime/EngineCore/RHI/IRHIContext.h"
+
+// Forward declaration
+class Renderer;
 
 class GameEngine
 {
@@ -11,18 +12,15 @@ public:
 	GameEngine();
 	~GameEngine();
 
-	void Initialize(Window* window, RHIType preferredRHI = RHIType::Vulkan);
+	void Initialize(Window* window);
 	void Shutdown();
 	void Render();
 	void OnWindowResize();
 
-	// RHI management
-	RHIType GetCurrentRHI() const;
-	const char* GetCurrentRHIName() const;
-	bool SetRHI(RHIType type);
+	// Simple status methods
+	bool IsInitialized() const;
 
 private:
 	Window* m_Window;
-	std::unique_ptr<IRHIContext> m_RHIContext;
-	RHIType m_CurrentRHI;
+	Renderer* m_Renderer;
 };
