@@ -2,12 +2,14 @@
 #include <stdexcept>
 #include <iostream>
 #include <glm/glm.hpp>
+#include <chrono>
 
 #include "Runtime/EngineCore/RHI/DeviceBuilder.h"
 #include "Runtime/EngineCore/RHI/PhysicalDeviceBuilder.h"
 #include "Runtime/EngineCore/RHI/SwapChainBuilder.h"
 #include "Runtime/EngineCore/Rendering/Layer.h"
 #include "Runtime/EngineCore/Rendering/ImGuiLayer.h"
+#include "Runtime/EngineCore/Rendering/RenderPerformanceLayer.h"
 
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
@@ -201,18 +203,24 @@ m_Device = std::unique_ptr<Device>(DeviceBuilder()
 // Create Command Pool
     m_CommandPool = std::make_unique<CommandPool>(m_Device->get(), m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value());
     
-    CreateCommandBuffers();
+CreateCommandBuffers();
     CreateSyncObjects();
+    CreateTimingQueries();
     
 // Initialize Layer Stack
     m_LayerStack = std::make_unique<LayerStack>();
     
-    // Create and add ImGui Layer
+// Create and add ImGui Layer
     auto imguiLayer = new ImGuiLayer();
     imguiLayer->SetRendererContext(this);
     m_LayerStack->PushLayer(imguiLayer);
     
-    std::cout << "Layer system initialized with ImGui layer" << std::endl;
+    // Create and add Render Performance Layer (renders after ImGui)
+    auto renderPerformanceLayer = new RenderPerformanceLayer();
+    renderPerformanceLayer->SetRendererContext(this);
+    m_LayerStack->PushOverlay(renderPerformanceLayer); // Use PushOverlay to render after ImGui
+    
+    std::cout << "Layer system initialized with ImGui and Render Performance layers" << std::endl;
 }
 
 void Renderer::CreateCommandBuffers()
@@ -260,13 +268,57 @@ void Renderer::CreateSyncObjects()
     }
 }
 
+void Renderer::CreateTimingQueries()
+{
+    m_QueryPools.resize(MAX_FRAMES_IN_FLIGHT);
+    m_GPUTimes.resize(MAX_FRAMES_IN_FLIGHT, 0.0f);
+    
+    VkQueryPoolCreateInfo queryPoolInfo{};
+    queryPoolInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    queryPoolInfo.pNext = nullptr;
+    queryPoolInfo.flags = 0;
+    queryPoolInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    queryPoolInfo.queryCount = 2; // Start and end timestamps
+    queryPoolInfo.pipelineStatistics = 0;
+    
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (vkCreateQueryPool(m_Device->get(), &queryPoolInfo, nullptr, &m_QueryPools[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create timestamp query pool!");
+        }
+    }
+}
+
+float Renderer::GetGPUTime(int frameIndex) const
+{
+    if (frameIndex == -1) {
+        frameIndex = (m_FrameIndex - 1 + MAX_FRAMES_IN_FLIGHT) % MAX_FRAMES_IN_FLIGHT;
+    }
+    return m_GPUTimes[frameIndex];
+}
+
 void Renderer::drawFrame()
 {
+    // Start CPU timing
+    auto cpuStartTime = std::chrono::high_resolution_clock::now();
+    
     VkResult fenceResult = vkWaitForFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex], VK_TRUE, UINT64_MAX);
     if (fenceResult != VK_SUCCESS)
     {
         throw std::runtime_error("failed to wait for fence!");
     }
+    
+// Get GPU timing results from previous frame (skip first few frames to avoid validation warnings)
+    if (!m_QueryPools.empty() && m_FrameIndex < m_QueryPools.size() && m_QueryPools[m_FrameIndex] != VK_NULL_HANDLE && m_FrameCount > MAX_FRAMES_IN_FLIGHT) {
+        uint64_t timestamps[2];
+        VkResult result = vkGetQueryPoolResults(m_Device->get(), m_QueryPools[m_FrameIndex], 0, 2, sizeof(timestamps), timestamps, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+        if (result == VK_SUCCESS) {
+            VkPhysicalDeviceProperties deviceProps;
+            vkGetPhysicalDeviceProperties(m_PhysicalDevice->get(), &deviceProps);
+            float gpuTime = (timestamps[1] - timestamps[0]) * static_cast<float>(deviceProps.limits.timestampPeriod) / 1000000.0f; // Convert to milliseconds
+            m_GPUTimes[m_FrameIndex] = gpuTime;
+        }
+    }
+    m_FrameCount++;
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(m_Device->get(), m_SwapChain->get(), UINT64_MAX, m_PresentCompleteSemaphores[m_FrameIndex], VK_NULL_HANDLE, &imageIndex);
@@ -330,7 +382,12 @@ vkResetFences(m_Device->get(), 1, &m_DrawFences[m_FrameIndex]);
     else if (result != VK_SUCCESS)
     {
         throw std::runtime_error("failed to present swap chain image!");
-    }
+}
+
+    // Calculate CPU render time
+    auto cpuEndTime = std::chrono::high_resolution_clock::now();
+    auto cpuDuration = std::chrono::duration_cast<std::chrono::microseconds>(cpuEndTime - cpuStartTime);
+    m_CPURenderTime = cpuDuration.count() / 1000.0f; // Convert to milliseconds
 
     m_FrameIndex = (m_FrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -366,8 +423,16 @@ void Renderer::CleanupSwapChainResources()
     }
     m_CommandBuffers.clear();
     
-    // Clean up render pass
+// Clean up render pass
     m_RenderPass.reset();
+    
+    // Clean up query pools
+    for (auto queryPool : m_QueryPools) {
+        if (queryPool != VK_NULL_HANDLE) {
+            vkDestroyQueryPool(m_Device->get(), queryPool, nullptr);
+        }
+    }
+    m_QueryPools.clear();
 }
 
 void Renderer::RecreateSwapChain()
@@ -428,9 +493,13 @@ m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
         }
     }
     
+// Reset frame counter for timing queries
+    m_FrameCount = 0;
+    
 // Recreate Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();
     CreateSyncObjects();
+    CreateTimingQueries();
 }
 
 void Renderer::recordCommandBuffer(uint32_t imageIndex)
@@ -473,7 +542,17 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     renderInfo.colorAttachmentCount = 1;
     renderInfo.pColorAttachments = &colorAttachment;
 
+// Reset and start GPU timestamp query before render pass
+    if (!m_QueryPools.empty() && m_FrameIndex < m_QueryPools.size() && m_QueryPools[m_FrameIndex] != VK_NULL_HANDLE) {
+        vkCmdResetQueryPool(commandBuffer, m_QueryPools[m_FrameIndex], 0, 2);
+    }
+
     this->vkCmdBeginRenderingKHR(commandBuffer, &renderInfo);
+    
+    // Start GPU timestamp query
+    if (!m_QueryPools.empty() && m_FrameIndex < m_QueryPools.size() && m_QueryPools[m_FrameIndex] != VK_NULL_HANDLE) {
+        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, m_QueryPools[m_FrameIndex], 0);
+    }
 
     // Set viewport and scissor
     VkViewport viewport{};
@@ -490,13 +569,18 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     scissor.extent = m_SwapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    // Render all layers
+// Render all layers
     for (auto layer : *m_LayerStack)
     {
         if (layer->IsEnabled())
         {
             layer->OnRender(commandBuffer);
         }
+    }
+    
+// End GPU timestamp query
+    if (!m_QueryPools.empty() && m_FrameIndex < m_QueryPools.size() && m_QueryPools[m_FrameIndex] != VK_NULL_HANDLE) {
+        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, m_QueryPools[m_FrameIndex], 1);
     }
 
 this->vkCmdEndRenderingKHR(commandBuffer);
@@ -558,8 +642,10 @@ std::vector<const char*> Renderer::getRequiredExtensions() {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    return extensions;
+return extensions;
 }
+
+
 
 Window* Renderer::GetWindow() const
 {

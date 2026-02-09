@@ -32,7 +32,6 @@ includedirs
 	{
 		"ImGui",
 		"GLFW",
-		"stb_image",
 		"vulkan-1"
 	}
 

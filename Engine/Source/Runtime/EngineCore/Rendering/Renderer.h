@@ -30,6 +30,10 @@ public:
     bool IsInitialized() const override { return m_Initialized; }
     
     LayerStack* GetLayerStack() const { return m_LayerStack.get(); }
+    
+    // Timing data for performance monitoring
+    float GetCPURenderTime() const { return m_CPURenderTime; }
+    float GetGPUTime(int frameIndex = -1) const;
 
 // RHI component getters for ImGuiLayer
     Instance* GetInstance() const { return m_Instance.get(); }
@@ -49,8 +53,9 @@ private:
     PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR = nullptr;
     PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR = nullptr;
 
-    void CreateCommandBuffers();
+void CreateCommandBuffers();
     void CreateSyncObjects();
+    void CreateTimingQueries();
     void drawFrame();
     void CleanupSwapChainResources();
     void RecreateSwapChain();
@@ -86,11 +91,21 @@ std::unique_ptr<RenderPass> m_RenderPass; // Kept for compatibility but not used
     std::vector<VkSemaphore> m_RenderFinishedSemaphores;
     std::vector<VkFence> m_DrawFences;
     
-    // State
+// State
     uint32_t m_QueueIndex = ~0;
     uint32_t m_FrameIndex = 0;
     VkExtent2D m_SwapChainExtent;
     VkFormat m_SwapChainFormat;
+    
+    // Timing
+    double m_LastFrameTime = 0.0;
+    float m_DeltaTime = 0.0f;
+    int m_FrameCount = 0; // For timing query initialization
+    
+    // GPU Timing Queries
+    std::vector<VkQueryPool> m_QueryPools;
+    std::vector<float> m_GPUTimes; // GPU render times in milliseconds
+    float m_CPURenderTime = 0.0f; // CPU render time in milliseconds
 
     std::vector<const char*> m_RequiredDeviceExtensions = { 
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
