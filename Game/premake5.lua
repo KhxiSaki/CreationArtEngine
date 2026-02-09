@@ -43,8 +43,7 @@ files {
 		runtime "Release"
 		optimize "On"
 
-	filter "configurations:Dist"
-		kind "WindowedApp"
+filter "configurations:Dist"
 		defines { "CAE_DIST" }
 		runtime "Release"
 		optimize "On"
