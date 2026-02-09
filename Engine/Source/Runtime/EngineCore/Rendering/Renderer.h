@@ -45,9 +45,11 @@ private:
     void InitializeVulkan();
     void Cleanup();
 
+    // Dynamic rendering function pointers
+    PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR = nullptr;
+    PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR = nullptr;
 
-void CreateCommandBuffers();
-    void CreateFramebuffers();
+    void CreateCommandBuffers();
     void CreateSyncObjects();
     void drawFrame();
     void CleanupSwapChainResources();
@@ -70,8 +72,7 @@ void transition_image_layout(uint32_t imageIndex, VkImageLayout old_layout, VkIm
     std::unique_ptr<PhysicalDevice> m_PhysicalDevice;
     std::unique_ptr<Device> m_Device;
     std::unique_ptr<SwapChain> m_SwapChain;
-std::unique_ptr<RenderPass> m_RenderPass;
-    std::vector<VkFramebuffer> m_Framebuffers;
+std::unique_ptr<RenderPass> m_RenderPass; // Kept for compatibility but not used with dynamic rendering
     std::unique_ptr<CommandPool> m_CommandPool;
     
 
@@ -91,7 +92,10 @@ std::unique_ptr<RenderPass> m_RenderPass;
     VkExtent2D m_SwapChainExtent;
     VkFormat m_SwapChainFormat;
 
-    std::vector<const char*> m_RequiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<const char*> m_RequiredDeviceExtensions = { 
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME 
+    };
 
     static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 };

@@ -131,9 +131,20 @@ void ImGuiLayer::OnAttach()
     init_info.MinImageCount = 2;
     init_info.ImageCount = 2;
     init_info.Allocator = nullptr;
-    init_info.PipelineInfoMain.RenderPass = m_RenderPass->get();
+    
+    // Enable dynamic rendering
+    init_info.UseDynamicRendering = true;
+    init_info.PipelineInfoMain.RenderPass = VK_NULL_HANDLE; // Ignored with dynamic rendering
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    
+    // Setup dynamic rendering pipeline info
+    VkFormat swapchainFormat = m_SwapChain->getImageFormat();
+    init_info.PipelineInfoMain.PipelineRenderingCreateInfo = {};
+    init_info.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    init_info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    init_info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &swapchainFormat;
+    
     init_info.CheckVkResultFn = [](VkResult err) { 
         if (err != VK_SUCCESS) {
             std::cerr << "[vulkan] Error: VkResult = " << err << std::endl;

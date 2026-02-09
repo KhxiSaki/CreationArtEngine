@@ -152,12 +152,33 @@ void Renderer::InitializeVulkan()
         throw std::runtime_error("Queue family indices are not available!");
     }
     
+// Enable dynamic rendering feature
+    VkPhysicalDeviceVulkan12Features vulkan12Features{};
+    vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12Features.bufferDeviceAddress = VK_TRUE;
+
+    VkPhysicalDeviceVulkan13Features vulkan13Features{};
+    vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    vulkan13Features.dynamicRendering = VK_TRUE;
+    vulkan13Features.synchronization2 = VK_TRUE;
+    
 m_Device = std::unique_ptr<Device>(DeviceBuilder()
         .setPhysicalDevice(m_PhysicalDevice->get())
         .setInstance(m_Instance->getInstance())
         .setQueueFamilyIndices(queueIndices)
         .addRequiredExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+        .addRequiredExtension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME)
+        .setVulkan12Features(vulkan12Features)
+        .setVulkan13Features(vulkan13Features)
         .build());
+    
+    // Load dynamic rendering function pointers
+    vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_Device->get(), "vkCmdBeginRenderingKHR");
+    vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_Device->get(), "vkCmdEndRenderingKHR");
+    
+    if (!vkCmdBeginRenderingKHR || !vkCmdEndRenderingKHR) {
+        throw std::runtime_error("Failed to load dynamic rendering function pointers!");
+    }
     
 // Create Swap Chain using builder
     m_SwapChain = std::unique_ptr<SwapChain>(SwapChainBuilder()
@@ -180,9 +201,7 @@ m_Device = std::unique_ptr<Device>(DeviceBuilder()
 // Create Command Pool
     m_CommandPool = std::make_unique<CommandPool>(m_Device->get(), m_PhysicalDevice->getQueueFamilyIndices().graphicsFamily.value());
     
-// Create Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();
-    CreateFramebuffers();
     CreateSyncObjects();
     
 // Initialize Layer Stack
@@ -211,29 +230,6 @@ void Renderer::CreateCommandBuffers()
     }
 }
 
-void Renderer::CreateFramebuffers()
-{
-    m_Framebuffers.resize(m_SwapChain->getImageViews().size());
-
-    for (size_t i = 0; i < m_SwapChain->getImageViews().size(); i++) {
-        VkImageView attachments[] = {
-            m_SwapChain->getImageViews()[i]
-        };
-
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = m_RenderPass->get();
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = m_SwapChainExtent.width;
-        framebufferInfo.height = m_SwapChainExtent.height;
-        framebufferInfo.layers = 1;
-
-        if (vkCreateFramebuffer(m_Device->get(), &framebufferInfo, nullptr, &m_Framebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create framebuffer!");
-        }
-    }
-}
 
 void Renderer::CreateSyncObjects()
 {
@@ -345,11 +341,6 @@ void Renderer::CleanupSwapChainResources()
         vkDeviceWaitIdle(m_Device->get());
     }
     
-    // Clean up framebuffers
-    for (auto framebuffer : m_Framebuffers) {
-        vkDestroyFramebuffer(m_Device->get(), framebuffer, nullptr);
-    }
-    m_Framebuffers.clear();
     
     // Clean up synchronization objects
     for (auto semaphore : m_RenderFinishedSemaphores) {
@@ -439,7 +430,6 @@ m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
     
 // Recreate Command Buffers, Framebuffers and Sync Objects
     CreateCommandBuffers();
-    CreateFramebuffers();
     CreateSyncObjects();
 }
 
@@ -454,22 +444,36 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
         throw std::runtime_error("failed to begin recording command buffer!");
     }
 
-    VkClearValue clearColor = {};
-    clearColor.color.float32[0] = 0.0f; // Dark red background
-    clearColor.color.float32[1] = 0.0f;
-    clearColor.color.float32[2] = 0.0f;
-    clearColor.color.float32[3] = 1.0f;
+// Transition the swapchain image to color attachment layout
+    transition_image_layout(imageIndex, 
+        VK_IMAGE_LAYOUT_UNDEFINED, 
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ACCESS_NONE_KHR,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
-    VkRenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = m_RenderPass->get();
-    renderPassInfo.framebuffer = m_Framebuffers[imageIndex];
-    renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = m_SwapChainExtent;
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    // Set up dynamic rendering
+    VkRenderingAttachmentInfoKHR colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    colorAttachment.imageView = m_SwapChain->getImageViews()[imageIndex];
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color.float32[0] = 0.0f; // Dark red background
+    colorAttachment.clearValue.color.float32[1] = 0.0f;
+    colorAttachment.clearValue.color.float32[2] = 0.0f;
+    colorAttachment.clearValue.color.float32[3] = 1.0f;
 
-vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    VkRenderingInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderInfo.renderArea.offset = {0, 0};
+    renderInfo.renderArea.extent = m_SwapChainExtent;
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = &colorAttachment;
+
+    this->vkCmdBeginRenderingKHR(commandBuffer, &renderInfo);
 
     // Set viewport and scissor
     VkViewport viewport{};
@@ -495,7 +499,16 @@ vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
         }
     }
 
-    vkCmdEndRenderPass(commandBuffer);
+this->vkCmdEndRenderingKHR(commandBuffer);
+
+    // Transition the swapchain image to present layout
+    transition_image_layout(imageIndex,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_ACCESS_NONE_KHR,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to record command buffer!");
