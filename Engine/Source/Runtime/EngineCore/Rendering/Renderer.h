@@ -22,7 +22,7 @@ public:
     // IRHIContext interface
     void Initialize(Window* window) override;
     void Shutdown() override;
-    void Render() override;
+    void Render(float DeltaTime) override;
     void OnWindowResize() override;
     
     void UpdateLayers(float deltaTime);
@@ -56,7 +56,7 @@ private:
 void CreateCommandBuffers();
     void CreateSyncObjects();
     void CreateTimingQueries();
-    void drawFrame();
+    void drawFrame(float DeltaTime);
     void CleanupSwapChainResources();
     void RecreateSwapChain();
     void recordCommandBuffer(uint32_t imageIndex);

@@ -100,11 +100,11 @@ void Renderer::Shutdown()
     }
 }
 
-void Renderer::Render()
+void Renderer::Render(float DeltaTime)
 {
     if (m_Initialized)
     {
-        drawFrame();
+        drawFrame(DeltaTime);
     }
 }
 
@@ -294,7 +294,7 @@ float Renderer::GetGPUTime(int frameIndex) const
     return m_GPUTimes[frameIndex];
 }
 
-void Renderer::drawFrame()
+void Renderer::drawFrame(float DeltaTime)
 {
     // Start CPU timing
     auto cpuStartTime = std::chrono::high_resolution_clock::now();

@@ -56,17 +56,16 @@ void GameEngine::Shutdown()
     }
 }
 
-void GameEngine::Render()
+void GameEngine::Render(float DeltaTime)
 {
-    //@TODO: add delta time here and down to layer
     if (EngineLayerStack)
     {
-    	UpdateLayers(0.016f);
+    	UpdateLayers(DeltaTime);
     }
 
     if (m_Renderer)
     {
-        m_Renderer->Render();
+        m_Renderer->Render(DeltaTime);
     }
 }
 

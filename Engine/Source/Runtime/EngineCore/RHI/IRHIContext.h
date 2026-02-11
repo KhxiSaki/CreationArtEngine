@@ -11,7 +11,7 @@ public:
 
     virtual void Initialize(Window* window) = 0;
     virtual void Shutdown() = 0;
-    virtual void Render() = 0;
+    virtual void Render(float DeltaTime) = 0;
     virtual void OnWindowResize() = 0;
     
     virtual bool IsInitialized() const = 0;

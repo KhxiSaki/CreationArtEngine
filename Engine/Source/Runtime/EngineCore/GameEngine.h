@@ -15,7 +15,7 @@ public:
 
 	void Initialize(Window* window);
 	void Shutdown();
-	void Render();
+	void Render(float DeltaTime);
 	void OnWindowResize();
 
 	// Simple status methods

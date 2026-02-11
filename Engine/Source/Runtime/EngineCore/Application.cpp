@@ -1,6 +1,6 @@
 #include "Application.h"
 #include <iostream>
-
+#include <chrono>
 Application::Application()
 {
 }
@@ -36,10 +36,17 @@ void Application::InitializeEngine()
 
 void Application::MainLoop()
 {
-    while (!m_Window->closed()) {
+    while (!m_Window->closed()) 
+    {
+        CurrentFrameTime = static_cast<float>(glfwGetTime());
+        DeltaTime = CurrentFrameTime - LastFrameTime;
+        ElapsedTime = CurrentFrameTime;
+
         m_Window->Update(); 
-        m_Engine->Render();
-        
+        m_Engine->Render(DeltaTime);
+
+        LastFrameTime = CurrentFrameTime;
+
     }
 }
 
