@@ -4,12 +4,12 @@
 #include <glm/glm.hpp>
 #include <chrono>
 
+#include "RenderLayer/ImGuiLayer.h"
+#include "RenderLayer/RenderPerformanceLayer.h"
+#include "Runtime/EngineCore/Layer/Layer.h"
 #include "Runtime/EngineCore/RHI/DeviceBuilder.h"
 #include "Runtime/EngineCore/RHI/PhysicalDeviceBuilder.h"
 #include "Runtime/EngineCore/RHI/SwapChainBuilder.h"
-#include "Runtime/EngineCore/Rendering/Layer.h"
-#include "Runtime/EngineCore/Rendering/ImGuiLayer.h"
-#include "Runtime/EngineCore/Rendering/RenderPerformanceLayer.h"
 
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
