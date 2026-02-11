@@ -239,58 +239,7 @@ void ImGuiLayer::OnUpdate(float deltaTime)
 
         }
 
-    // Menu bar
-    if (ImGui::BeginMenuBar())
-    {
-        if (ImGui::BeginMenu("Options"))
-        {
-            if (ImGui::MenuItem("Demo Window", nullptr, m_ShowDemoWindow))
-                m_ShowDemoWindow = !m_ShowDemoWindow;
-            if (ImGui::MenuItem("Another Window", nullptr, m_ShowAnotherWindow))
-                m_ShowAnotherWindow = !m_ShowAnotherWindow;
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenuBar();
-    }
-
     ImGui::End();
-    // 1. Show the big demo window
-    if (m_ShowDemoWindow)
-        ImGui::ShowDemoWindow(&m_ShowDemoWindow);
-
-    // 2. Show a simple window that we create ourselves
-    {
-        static float f = 0.0f;
-        static int counter = 0;
-
-        ImGui::Begin("Hello, world!");
-        ImGui::Text("This is some useful text.");
-        ImGui::Checkbox("Demo Window", &m_ShowDemoWindow);
-        ImGui::Checkbox("Another Window", &m_ShowAnotherWindow);
-
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        ImGui::ColorEdit3("clear color", (float*)&m_ClearColor);
-
-        if (ImGui::Button("Button"))
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
-    }
-
-    // 3. Show another simple window
-    if (m_ShowAnotherWindow)
-    {
-        ImGui::Begin("Another Window", &m_ShowAnotherWindow);
-        ImGui::Text("Hello from another window!");
-        if (ImGui::Button("Close Me"))
-            m_ShowAnotherWindow = false;
-        ImGui::End();
-    }
-
-    
 }
 
 void ImGuiLayer::OnRender(VkCommandBuffer commandBuffer)
@@ -320,12 +269,4 @@ void ImGuiLayer::CleanupVulkan()
         vkDestroyDescriptorPool(m_Device->get(), m_DescriptorPool, nullptr);
         m_DescriptorPool = VK_NULL_HANDLE;
     }
-}
-
-
-
-void ImGuiLayer::OnWindowResize(int width, int height)
-{
-    // ImGui doesn't need to do anything special on resize since it's using the main renderer's swapchain
-    // The display size will be updated automatically in OnUpdate via ImGui_ImplGlfw_NewFrame()
 }
