@@ -1,6 +1,6 @@
 #include "GameEngine.h"
 #include <iostream>
-
+#include "Rendering/Layer.h"
 #include "Rendering/Renderer.h"
 
 GameEngine::GameEngine()
@@ -17,6 +17,14 @@ void GameEngine::Initialize(Window* window)
 {
     m_Window = window;
     
+    //Attach every engine layer to initialize
+    if (EngineLayerStack) {
+        for (auto layer : *EngineLayerStack) {
+            layer->OnAttach();
+        }
+    }
+
+    //@TODO: Move rendering initialization into Rendering layer
     // Initialize the Renderer with the window
     m_Renderer = new Renderer(window);
     
@@ -31,6 +39,16 @@ void GameEngine::Initialize(Window* window)
 
 void GameEngine::Shutdown()
 {
+    // Shutdown layers first - this will clean up ImGui's Vulkan resources
+    if (EngineLayerStack) 
+    {
+        for (auto layer : *EngineLayerStack) 
+        {
+            layer->OnDetach();
+        }
+        EngineLayerStack.reset();
+    }
+
     if (m_Renderer)
     {
         delete m_Renderer;
@@ -40,11 +58,31 @@ void GameEngine::Shutdown()
 
 void GameEngine::Render()
 {
+    //@TODO: add delta time here and down to layer
+    if (EngineLayerStack)
+    {
+    	UpdateLayers(0.016f);
+    }
+
     if (m_Renderer)
     {
         m_Renderer->Render();
     }
 }
+
+
+void GameEngine::UpdateLayers(float deltaTime)
+{
+    // Update all layers
+    for (auto layer : *EngineLayerStack)
+    {
+        if (layer->IsEnabled())
+        {
+            layer->OnUpdate(deltaTime);
+        }
+    }
+}
+
 
 void GameEngine::OnWindowResize()
 {
