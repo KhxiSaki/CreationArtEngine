@@ -27,8 +27,6 @@ public:
     void OnRender(VkCommandBuffer commandBuffer) override;
 
     void SetRendererContext(Renderer* renderer);
-    void OnWindowResize(int width, int height);
-
 private:
     void SetupVulkan();
     void CleanupVulkan();

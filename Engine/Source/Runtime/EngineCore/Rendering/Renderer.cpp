@@ -131,8 +131,6 @@ void Renderer::OnWindowResize()
     }
 }
 
-
-
 void Renderer::InitializeVulkan()
 {
     // Create Instance using the Instance class which handles its own creation
@@ -482,16 +480,6 @@ m_SwapChain = std::unique_ptr<SwapChain>(builder.build());
 
 // Recreate Render Pass
     m_RenderPass = std::make_unique<RenderPass>(m_Device->get(), m_SwapChainFormat);
-    
-    // Notify ImGui layer of the resize
-    if (m_LayerStack) {
-        for (auto layer : *m_LayerStack) {
-            auto imguiLayer = dynamic_cast<ImGuiLayer*>(layer);
-            if (imguiLayer) {
-                imguiLayer->OnWindowResize(m_SwapChainExtent.width, m_SwapChainExtent.height);
-            }
-        }
-    }
     
 // Reset frame counter for timing queries
     m_FrameCount = 0;
