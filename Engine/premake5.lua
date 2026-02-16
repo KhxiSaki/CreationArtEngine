@@ -10,8 +10,7 @@ project "Engine"
 files
 	{
 		"Source/**.h",
-		"Source/**.cpp",
-		"Source/Runtime/EngineCore/RHI/VMAImplementation.cpp"
+		"Source/**.cpp"
 	}
 	
 includedirs
